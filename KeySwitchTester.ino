@@ -52,9 +52,12 @@ void setup() {
     nexSerial = Serial1;
     nexSerial.begin(115200); // Hardcoded to 115200 baud rate
 
-    // Initialize the Nextion display
-    if (!nexInit()) {
-        while (1); // Halt if Nextion initialization fails
+    // Retry mechanism for Nextion initialization
+    for (int i = 0; i < 3; i++) { // Retry up to 3 times
+        if (nexInit()) {
+            break; // Exit loop if initialization succeeds
+        }
+        delay(500); // Small delay before retrying
     }
 
     // Attach button callback
