@@ -1,8 +1,8 @@
 #include "Nextion.h"
 
 // Define Nextion components
-NexNumber n0 = NexNumber(0, 2, "n0"); // Page 0, Component ID 2, Name "n0"
-NexButton b0 = NexButton(0, 3, "b0"); // Page 0, Component ID 3, Name "b0"
+NexNumber n1c = NexNumber(0, 6, "n1c"); // Page 0, Component ID 2, Name "n0"
+NexButton b0 = NexButton(0, 15, "b0"); // Page 0, Component ID 3, Name "b0"
 NexText t0 = NexText(0, 4, "t0");     // Page 0, Component ID 4, Name "t0"
 
 // List of components to listen for events
