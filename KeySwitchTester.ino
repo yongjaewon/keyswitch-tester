@@ -1,9 +1,9 @@
 #include "Nextion.h"
 
 // Define Nextion components
-NexNumber n1c = NexNumber(0, 6, "n1c"); // Page 0, Component ID 2, Name "n0"
-NexButton b0 = NexButton(0, 15, "b0"); // Page 0, Component ID 3, Name "b0"
-NexText t0 = NexText(0, 4, "t0");     // Page 0, Component ID 4, Name "t0"
+NexNumber n0 = NexNumber(0, 6, "n1c"); // Page 0, Component ID 6, Name "n1c"
+NexButton b0 = NexButton(0, 14, "b0"); // Page 0, Component ID 15, Name "b0"
+NexSwitch
 
 // List of components to listen for events
 NexTouch *nex_listen_list[] = {
@@ -21,7 +21,6 @@ enum State {
     FORCE_REFRESH,
     GET_VALUE,
     SET_VALUE,
-    SET_TEXT,
     SERVO_COMMAND,
     COMPLETE
 };
@@ -45,13 +44,21 @@ const int maxRetries = 3; // Maximum retries
 
 // Function to send data in the specified format
 void sendData(byte data[], int length) {
-    Serial.println("Sending data:");
+    // Serial.println("Sending data:");
     for (int i = 0; i < length; i++) {
-        Serial.print(data[i], HEX);
-        Serial.print(" ");
-        Serial1.write(data[i]); // Use Serial1 for Hiwonder
+        // Serial.print(data[i], HEX);
+        // Serial.print(" ");
+        Serial1.write(data[i]); // Send data to the servo controller
     }
-    Serial.println();
+    // Serial.println();
+
+    // Check for a response from the servo controller
+    // delay(10); // Small delay to allow response
+    // while (Serial1.available()) {
+    //     byte response = Serial1.read();
+    //     Serial.print("Servo controller response: ");
+    //     Serial.println(response, HEX);
+    // }
 }
 
 // Function to create and send a command for servo movement
@@ -72,22 +79,13 @@ void sendServoMoveCommand(byte servoID, int angle, int time) {
     data[3] = 0x03; // CMD_SERVO_MOVE
 
     // Time (low and high byte)
-    data[4] = time & 0xFF;        // Low byte of time
-    data[5] = (time >> 8) & 0xFF; // High byte of time
-
-    // Servo ID
-    data[6] = servoID;
-
+    data[4] = 0x01;
+    data[5] = time & 0xFF;
+    data[6] = (time >> 8) & 0xFF;;
+    data[7] = servoID;  // ID
     // Angle (low and high byte)
-    data[7] = controlAngle & 0xFF;        // Low byte of angle
-    data[8] = (controlAngle >> 8) & 0xFF; // High byte of angle
-
-    // Checksum
-    uint16_t checksum = 0;
-    for (int i = 2; i < 9; i++) {
-        checksum += data[i];
-    }
-    data[9] = (~checksum) & 0xFF; // Bitwise NOT of checksum
+    data[8] = controlAngle & 0xFF;        // Low byte of angle
+    data[9] = (controlAngle >> 8) & 0xFF; // High byte of angle
 
     // Send the data
     sendData(data, 10);
@@ -96,6 +94,7 @@ void sendServoMoveCommand(byte servoID, int angle, int time) {
 
 // Non-blocking callback for button press event
 void b0PopCallback(void *ptr) {
+  Serial.println("Callback triggered!"); // Debugging
     if (currentState == IDLE) {
         Serial.println("Button pressed!");
         currentState = FORCE_REFRESH;
@@ -145,7 +144,7 @@ void handleStates() {
                 if (n0.setValue(value)) {
                     Serial.print("Updated value to: ");
                     Serial.println(value);
-                    currentState = SET_TEXT;
+                    currentState = SERVO_COMMAND;
                     retryCount = 0;
                 } else {
                     Serial.print("Failed to update n0 value. Retrying... Attempt ");
@@ -160,30 +159,11 @@ void handleStates() {
             }
             break;
 
-        case SET_TEXT:
-            if (millis() - lastTime >= retryDelay) {
-                if (t0.setText("Button Pressed")) {
-                    Serial.println("Text updated successfully.");
-                    currentState = SERVO_COMMAND;
-                    retryCount = 0;
-                } else {
-                    Serial.print("Failed to update text. Retrying... Attempt ");
-                    Serial.println(retryCount + 1);
-                    retryCount++;
-                    if (retryCount >= maxRetries) {
-                        Serial.println("Failed to update text after retries. Aborting.");
-                        currentState = COMPLETE;
-                    }
-                }
-                lastTime = millis();
-            }
-            break;
-
         case SERVO_COMMAND:
             switch (servoSubState) {
                 case SERVO_START:
                     Serial.println("Sending initial servo command...");
-                    sendServoMoveCommand(0x01, 45, 100); // Move servo to 45 degrees
+                    sendServoMoveCommand(0x01, 90, 100); // Move servo to 45 degrees
                     servoSubState = SERVO_WAIT_TDWELL;
                     lastTime = millis();
                     break;
@@ -191,8 +171,8 @@ void handleStates() {
                 case SERVO_WAIT_TDWELL:
                     if (millis() - lastTime >= T_DWELL) {
                         Serial.println("Sending servo to 0 degrees...");
-                        sendServoMoveCommand(0x01, 0, 100); // Move servo to 0 degrees
-                        servoSubState = SERVO_WAIT_1000;
+                        sendServoMoveCommand(0x01, 45, 100); // Move servo to 0 degrees
+                        servoSubState = SERVO_WAIT;
                         lastTime = millis();
                     }
                     break;
@@ -209,6 +189,7 @@ void handleStates() {
         case COMPLETE:
             Serial.println("Operation complete.");
             currentState = IDLE; // Reset for the next button press
+            servoSubState = SERVO_START; // Reset servo state machine
             break;
     }
 }
@@ -216,14 +197,17 @@ void handleStates() {
 void setup() {
     // Initialize Serial for debugging
     Serial.begin(9600);
+    delay(500);
     Serial.println("Initializing...");
 
     // Initialize Serial1 for Hiwonder Servo Controller
     Serial1.begin(9600);
+    delay(500);
     Serial.println("Serial1 initialized for Hiwonder Servo Controller");
 
     // nexSerial for Nextion defaults to Serial2
     nexSerial.begin(115200);
+    delay(500);
     Serial.println("nexSerial initialized for Nextion");
 
     // Retry mechanism for Nextion initialization
@@ -239,10 +223,6 @@ void setup() {
     // Attach button callback
     b0.attachPop(b0PopCallback);
     Serial.println("Button callback attached");
-
-    // Set initial message on Nextion display
-    Serial.println("Setting initial text to 'Ready'");
-    t0.setText("Ready");
 }
 
 void loop() {
