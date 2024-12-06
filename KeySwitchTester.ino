@@ -24,12 +24,16 @@ NexText t3k = NexText(0, 21, "t3k"); // #3 Key Switch Status
 NexText t4s = NexText(0, 22, "t4s"); // #4 Starter Status
 NexText t4k = NexText(0, 23, "t4k"); // #4 Key Switch Status
 
+NexDSButton bt0 = NexDSButton(0, 24, "bt0"); // Master Enable/Disable
+NexNumber n0 = NexNumber(0, 27, "n0"); // Actuation period in cycles per minute
+
 // List of components to listen for events
 NexTouch *nex_listen_list[] = {
     &sw1,
     &sw2,
     &sw3,
     &sw4,
+    &bt0,
     NULL
 };
 
@@ -42,6 +46,10 @@ const float vOffset = 2.5;      // Zero-current voltage (2.5V)
 const float sensitivity = 0.04; // Sensitivity in V/A (40 mV/A for ACS758-050B)
 const int currentSensePin = A0; // Current sensor connected to A0
 const int currentThreshold = 1; // Failure threshold: 1A
+
+unsigned long actuationPeriodMillis = 10000; // Default actuation period in milliseconds
+unsigned long lastPeriodUpdate = 0; // Timer to track periodic updates from Nextion
+bool masterEnable = true; // Master enable state
 
 const unsigned long ACTUATION_PERIOD = 10000; // Actuation period in milliseconds
 
@@ -107,6 +115,18 @@ void sendServoMoveCommand(byte servoID, int angle, int time) {
 
     // Send the data
     sendData(data, 10);
+}
+
+void updateMasterEnable() {
+    uint32_t value;
+    if (bt0.getValue(&value)) {
+        masterEnable = (value == 0); // Enabled if bt0 value is 0
+        if (!masterEnable) {
+            Serial.println("Master enable is OFF. Stopping actuations.");
+        } else {
+            Serial.println("Master enable is ON. Resuming actuations.");
+        }
+    }
 }
 
 // Function to read current and update the detection flag
@@ -269,6 +289,9 @@ void handleStates() {
             currentStationIndex = 0; // Wrap to the first station if index is invalid
         }
 
+        // Skip delay after failure
+        lastActuationTime = millis();
+
     } else {
         Serial.println("Operation complete, key switch functioning normally.");
         currentTextComponent->setText("Key Switch Normal");
@@ -277,7 +300,25 @@ void handleStates() {
 
     currentState = IDLE; // Reset for the next station
     break;
+<<<<<<< HEAD
+}
+}
 
+void updateActuationPeriod() {
+    uint32_t cyclesPerMinute;
+    if (n0.getValue(&cyclesPerMinute)) {
+        // Convert cycles per minute to milliseconds per cycle
+        if (cyclesPerMinute > 0) {
+            actuationPeriodMillis = 60000 / cyclesPerMinute;
+            Serial.print("Updated actuation period (ms): ");
+            Serial.println(actuationPeriodMillis);
+        } else {
+            Serial.println("Invalid cycles per minute from Nextion.");
+        }
+    } else {
+        Serial.println("Failed to fetch cycles per minute from Nextion.");
+=======
+>>>>>>> 496e3e8585af7b76bada4010f7bfeb25d5b6c089
     }
 }
 
