@@ -3,7 +3,6 @@
 // Define Nextion components
 NexNumber n0 = NexNumber(0, 6, "n1c"); // Page 0, Component ID 6, Name "n1c"
 NexButton b0 = NexButton(0, 14, "b0"); // Page 0, Component ID 15, Name "b0"
-NexSwitch
 
 // List of components to listen for events
 NexTouch *nex_listen_list[] = {
@@ -11,9 +10,15 @@ NexTouch *nex_listen_list[] = {
     NULL
 };
 
-// Servo parameters
+// Servo and current sensor parameters
 const int T_DWELL = 150;
 const int SERVO_WAIT_TIME = 1000;
+const float vRef = 5.0;         // Arduino reference voltage
+const float adcResolution = 1023.0; // 10-bit ADC resolution
+const float vOffset = 2.5;      // Zero-current voltage (2.5V)
+const float sensitivity = 0.04; // Sensitivity in V/A (40 mV/A for ACS758-050B)
+const int currentSensePin = A0; // Current sensor connected to A0
+const int currentThreshold = 1; // Failure threshold: 1A
 
 // State machine states
 enum State {
@@ -36,29 +41,13 @@ enum ServoSubState {
 State currentState = IDLE; // Initial state
 ServoSubState servoSubState = SERVO_START; // Initial substate for servo commands
 unsigned long lastTime = 0; // Timer for non-blocking delays
-const unsigned long retryDelay = 50; // Delay between retries (ms)
-
-uint32_t value = 0; // Holds the current value of n0
-int retryCount = 0; // Retry counter
-const int maxRetries = 3; // Maximum retries
+bool currentDetected = false; // Flag to track current detection
 
 // Function to send data in the specified format
 void sendData(byte data[], int length) {
-    // Serial.println("Sending data:");
     for (int i = 0; i < length; i++) {
-        // Serial.print(data[i], HEX);
-        // Serial.print(" ");
         Serial1.write(data[i]); // Send data to the servo controller
     }
-    // Serial.println();
-
-    // Check for a response from the servo controller
-    // delay(10); // Small delay to allow response
-    // while (Serial1.available()) {
-    //     byte response = Serial1.read();
-    //     Serial.print("Servo controller response: ");
-    //     Serial.println(response, HEX);
-    // }
 }
 
 // Function to create and send a command for servo movement
@@ -81,7 +70,7 @@ void sendServoMoveCommand(byte servoID, int angle, int time) {
     // Time (low and high byte)
     data[4] = 0x01;
     data[5] = time & 0xFF;
-    data[6] = (time >> 8) & 0xFF;;
+    data[6] = (time >> 8) & 0xFF;
     data[7] = servoID;  // ID
     // Angle (low and high byte)
     data[8] = controlAngle & 0xFF;        // Low byte of angle
@@ -89,14 +78,22 @@ void sendServoMoveCommand(byte servoID, int angle, int time) {
 
     // Send the data
     sendData(data, 10);
-    Serial.println("Servo move command sent.");
+}
+
+// Function to read current and update the detection flag
+void monitorCurrent() {
+    int adcValue = analogRead(currentSensePin);
+    float vInput = (adcValue / adcResolution) * vRef;
+    float current = (vOffset - vInput) / sensitivity;
+
+    if (current > currentThreshold) {
+        currentDetected = true;
+    }
 }
 
 // Non-blocking callback for button press event
 void b0PopCallback(void *ptr) {
-  Serial.println("Callback triggered!"); // Debugging
     if (currentState == IDLE) {
-        Serial.println("Button pressed!");
         currentState = FORCE_REFRESH;
         lastTime = millis();
     }
@@ -105,73 +102,39 @@ void b0PopCallback(void *ptr) {
 void handleStates() {
     switch (currentState) {
         case FORCE_REFRESH:
-            if (millis() - lastTime >= retryDelay) {
-                // Force refresh of n0
-                nexSerial.print("ref n0");
-                nexSerial.write(0xFF);
-                nexSerial.write(0xFF);
-                nexSerial.write(0xFF);
-                Serial.println("Forced refresh of n0.");
+            if (millis() - lastTime >= 50) {
                 currentState = GET_VALUE;
-                retryCount = 0;
                 lastTime = millis();
             }
             break;
 
         case GET_VALUE:
-            if (millis() - lastTime >= retryDelay) {
-                if (n0.getValue(&value)) {
-                    Serial.print("Current value: ");
-                    Serial.println(value);
-                    currentState = SET_VALUE;
-                    retryCount = 0;
-                } else {
-                    Serial.print("Failed to get n0 value. Retrying... Attempt ");
-                    Serial.println(retryCount + 1);
-                    retryCount++;
-                    if (retryCount >= maxRetries) {
-                        Serial.println("Failed to get n0 value after retries. Aborting.");
-                        currentState = COMPLETE;
-                    }
-                }
+            if (millis() - lastTime >= 50) {
+                currentState = SET_VALUE;
                 lastTime = millis();
             }
             break;
 
         case SET_VALUE:
-            if (millis() - lastTime >= retryDelay) {
-                value += 1;
-                if (n0.setValue(value)) {
-                    Serial.print("Updated value to: ");
-                    Serial.println(value);
-                    currentState = SERVO_COMMAND;
-                    retryCount = 0;
-                } else {
-                    Serial.print("Failed to update n0 value. Retrying... Attempt ");
-                    Serial.println(retryCount + 1);
-                    retryCount++;
-                    if (retryCount >= maxRetries) {
-                        Serial.println("Failed to update n0 value after retries. Aborting.");
-                        currentState = COMPLETE;
-                    }
-                }
+            if (millis() - lastTime >= 50) {
+                currentState = SERVO_COMMAND;
+                currentDetected = false; // Reset current detection flag
                 lastTime = millis();
             }
             break;
 
         case SERVO_COMMAND:
+            monitorCurrent(); // Continuously monitor current during this state
             switch (servoSubState) {
                 case SERVO_START:
-                    Serial.println("Sending initial servo command...");
-                    sendServoMoveCommand(0x01, 90, 100); // Move servo to 45 degrees
+                    sendServoMoveCommand(0x01, 90, 100); // Actuate the key switch
                     servoSubState = SERVO_WAIT_TDWELL;
                     lastTime = millis();
                     break;
 
                 case SERVO_WAIT_TDWELL:
                     if (millis() - lastTime >= T_DWELL) {
-                        Serial.println("Sending servo to 0 degrees...");
-                        sendServoMoveCommand(0x01, 45, 100); // Move servo to 0 degrees
+                        sendServoMoveCommand(0x01, 45, 100); // Reset the key switch
                         servoSubState = SERVO_WAIT;
                         lastTime = millis();
                     }
@@ -179,7 +142,7 @@ void handleStates() {
 
                 case SERVO_WAIT:
                     if (millis() - lastTime >= SERVO_WAIT_TIME) {
-                        Serial.println("Servo sequence complete.");
+                        servoSubState = SERVO_START;
                         currentState = COMPLETE; // Finish the sequence
                     }
                     break;
@@ -187,9 +150,12 @@ void handleStates() {
             break;
 
         case COMPLETE:
-            Serial.println("Operation complete.");
+            if (!currentDetected) {
+                Serial.println("Key switch failure detected!");
+            } else {
+                Serial.println("Operation complete, key switch functioning normally.");
+            }
             currentState = IDLE; // Reset for the next button press
-            servoSubState = SERVO_START; // Reset servo state machine
             break;
     }
 }
@@ -197,13 +163,9 @@ void handleStates() {
 void setup() {
     // Initialize Serial for debugging
     Serial.begin(9600);
-    delay(500);
-    Serial.println("Initializing...");
 
     // Initialize Serial1 for Hiwonder Servo Controller
     Serial1.begin(9600);
-    delay(500);
-    Serial.println("Serial1 initialized for Hiwonder Servo Controller");
 
     // nexSerial for Nextion defaults to Serial2
     nexSerial.begin(115200);
