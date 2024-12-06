@@ -1,12 +1,35 @@
 #include "Nextion.h"
 
 // Define Nextion components
-NexNumber n0 = NexNumber(0, 6, "n1c"); // Page 0, Component ID 6, Name "n1c"
-NexButton b0 = NexButton(0, 14, "b0"); // Page 0, Component ID 15, Name "b0"
+NexNumber n1t = NexNumber(0, 5, "n1t"); // #1 Target Count
+NexNumber n1c = NexNumber(0, 6, "n1c"); // #1 Current Count
+NexNumber n2t = NexNumber(0, 8, "n2t"); // #2 Target Count
+NexNumber n2c = NexNumber(0, 9, "n2c"); // #2 Current Count
+NexNumber n3t = NexNumber(0, 10, "n3t"); // #3 Target Count
+NexNumber n3c = NexNumber(0, 11, "n3c"); // #3 Current Count
+NexNumber n4t = NexNumber(0, 12, "n4t"); // #4 Target Count
+NexNumber n4c = NexNumber(0, 13, "n4c"); // #4 Current Count
+
+NexDSButton sw1 = NexDSButton(0, 7, "sw1"); // #1 On/Off Switch
+NexDSButton sw2 = NexDSButton(0, 2, "sw2"); // #2 On/Off Switch
+NexDSButton sw3 = NexDSButton(0, 3, "sw3"); // #3 On/Off Switch
+NexDSButton sw4 = NexDSButton(0, 4, "sw4"); // #4 On/Off Switch
+
+NexText t1s = NexText(0, 4, "t1s"); // #1 Starter Status
+NexText t1k = NexText(0, 17, "t1k"); // #1 Key Switch Status
+NexText t2s = NexText(0, 19, "t2s"); // #2 Starter Status
+NexText t2k = NexText(0, 18, "t2k"); // #2 Key Switch Status
+NexText t3s = NexText(0, 20, "t3s"); // #3 Starter Status
+NexText t3k = NexText(0, 21, "t3k"); // #3 Key Switch Status
+NexText t4s = NexText(0, 22, "t4s"); // #4 Starter Status
+NexText t4k = NexText(0, 23, "t4k"); // #4 Key Switch Status
 
 // List of components to listen for events
 NexTouch *nex_listen_list[] = {
-    &b0,
+    &sw1,
+    &sw2,
+    &sw3,
+    &sw4,
     NULL
 };
 
@@ -20,10 +43,11 @@ const float sensitivity = 0.04; // Sensitivity in V/A (40 mV/A for ACS758-050B)
 const int currentSensePin = A0; // Current sensor connected to A0
 const int currentThreshold = 1; // Failure threshold: 1A
 
+const unsigned long ACTUATION_PERIOD = 10000; // Actuation period in milliseconds
+
 // State machine states
 enum State {
     IDLE,
-    FORCE_REFRESH,
     GET_VALUE,
     SET_VALUE,
     SERVO_COMMAND,
@@ -40,8 +64,13 @@ enum ServoSubState {
 
 State currentState = IDLE; // Initial state
 ServoSubState servoSubState = SERVO_START; // Initial substate for servo commands
-unsigned long lastTime = 0; // Timer for non-blocking delays
+unsigned long lastActuationTime = 0; // Timer to track periodic actuation
+unsigned long lastStateTime = 0; // Timer for state transitions
 bool currentDetected = false; // Flag to track current detection
+
+uint32_t enabledStations[4] = {0, 0, 0, 0}; // Store which stations are enabled
+uint32_t numEnabledStations = 0; // Count of enabled stations
+uint32_t currentStationIndex = 0; // Current station being processed
 
 // Function to send data in the specified format
 void sendData(byte data[], int length) {
@@ -91,35 +120,84 @@ void monitorCurrent() {
     }
 }
 
-// Non-blocking callback for button press event
-void b0PopCallback(void *ptr) {
-    if (currentState == IDLE) {
-        currentState = FORCE_REFRESH;
-        lastTime = millis();
+// Update enabled stations
+void updateEnabledStations() {
+    uint32_t value;
+    numEnabledStations = 0; // Reset count
+
+    // Check each switch and update enabledStations array
+    if (sw1.getValue(&value) && value == 1) enabledStations[numEnabledStations++] = 1;
+    if (sw2.getValue(&value) && value == 1) enabledStations[numEnabledStations++] = 2;
+    if (sw3.getValue(&value) && value == 1) enabledStations[numEnabledStations++] = 3;
+    if (sw4.getValue(&value) && value == 1) enabledStations[numEnabledStations++] = 4;
+
+    if (numEnabledStations == 0) {
+        Serial.println("No stations enabled.");
     }
 }
 
 void handleStates() {
+  static uint32_t currentCount = 0; // Track the current count locally
+  static unsigned long lastActuationTime = millis(); // Track time for periodic actuation
+
+  // Calculate delay between stations based on enabled stations
+  unsigned long stationDelay = ACTUATION_PERIOD / max(1, numEnabledStations);
+
     switch (currentState) {
-        case FORCE_REFRESH:
-            if (millis() - lastTime >= 50) {
-                currentState = GET_VALUE;
-                lastTime = millis();
+        case IDLE:
+            if (millis() - lastActuationTime >= stationDelay) {
+                lastActuationTime = millis();
+                updateEnabledStations();
+                if (numEnabledStations > 0) {
+                    currentStationIndex = (currentStationIndex + 1) % numEnabledStations;
+                    Serial.print("Processing station: ");
+                    Serial.println(enabledStations[currentStationIndex]);
+                    currentState = GET_VALUE;
+                }
             }
             break;
 
         case GET_VALUE:
-            if (millis() - lastTime >= 50) {
-                currentState = SET_VALUE;
-                lastTime = millis();
+            if (millis() - lastStateTime >= 50) {
+                // Retrieve and update current count for the station
+                NexNumber *currentCountComponent;
+                if (enabledStations[currentStationIndex] == 1) currentCountComponent = &n1c;
+                else if (enabledStations[currentStationIndex] == 2) currentCountComponent = &n2c;
+                else if (enabledStations[currentStationIndex] == 3)currentCountComponent = &n3c;
+                else currentCountComponent = &n4c;
+
+                if (currentCountComponent->getValue(&currentCount)) {
+                    Serial.print("Current count retrieved for station ");
+                    Serial.print(enabledStations[currentStationIndex]);
+                    Serial.print(": ");
+                    Serial.println(currentCount);
+                    currentState = SET_VALUE;
+                } else {
+                    Serial.println("Failed to get value. Retrying...");
+                }
+                lastStateTime = millis();
             }
             break;
 
         case SET_VALUE:
-            if (millis() - lastTime >= 50) {
-                currentState = SERVO_COMMAND;
-                currentDetected = false; // Reset current detection flag
-                lastTime = millis();
+            if (millis() - lastStateTime >= 50) {
+                currentCount++;
+                NexNumber *currentCountComponent;
+                if (enabledStations[currentStationIndex] == 1) currentCountComponent = &n1c;
+                else if (enabledStations[currentStationIndex] == 2) currentCountComponent = &n2c;
+                else if (enabledStations[currentStationIndex] == 3) currentCountComponent = &n3c;
+                else currentCountComponent = &n4c;
+
+                if (currentCountComponent->setValue(currentCount)) {
+                    Serial.print("Updated count to: ");
+                    Serial.println(currentCount);
+                    currentState = SERVO_COMMAND;
+                    servoSubState = SERVO_START;
+                    currentDetected = false;
+                } else {
+                    Serial.println("Failed to update value. Retrying...");
+                }
+                lastStateTime = millis();
             }
             break;
 
@@ -127,21 +205,21 @@ void handleStates() {
             monitorCurrent(); // Continuously monitor current during this state
             switch (servoSubState) {
                 case SERVO_START:
-                    sendServoMoveCommand(0x01, 90, 100); // Actuate the key switch
+                    sendServoMoveCommand(enabledStations[currentStationIndex], 90, 100); // Actuate the current station's key switch
                     servoSubState = SERVO_WAIT_TDWELL;
-                    lastTime = millis();
+                    lastStateTime = millis();
                     break;
 
                 case SERVO_WAIT_TDWELL:
-                    if (millis() - lastTime >= T_DWELL) {
-                        sendServoMoveCommand(0x01, 45, 100); // Reset the key switch
+                    if (millis() - lastStateTime >= T_DWELL) {
+                        sendServoMoveCommand(enabledStations[currentStationIndex], 45, 100); // Reset the current station's key switch
                         servoSubState = SERVO_WAIT;
-                        lastTime = millis();
+                        lastStateTime = millis();
                     }
                     break;
 
                 case SERVO_WAIT:
-                    if (millis() - lastTime >= SERVO_WAIT_TIME) {
+                    if (millis() - lastStateTime >= SERVO_WAIT_TIME) {
                         servoSubState = SERVO_START;
                         currentState = COMPLETE; // Finish the sequence
                     }
@@ -150,13 +228,39 @@ void handleStates() {
             break;
 
         case COMPLETE:
-            if (!currentDetected) {
-                Serial.println("Key switch failure detected!");
-            } else {
-                Serial.println("Operation complete, key switch functioning normally.");
-            }
-            currentState = IDLE; // Reset for the next button press
-            break;
+    NexText *currentTextComponent;
+    NexDSButton *currentSwitchComponent;
+
+    // Determine the appropriate components for the current station
+    if (enabledStations[currentStationIndex] == 1) {
+        currentTextComponent = &t1k;
+        currentSwitchComponent = &sw1;
+    } else if (enabledStations[currentStationIndex] == 2) {
+        currentTextComponent = &t2k;
+        currentSwitchComponent = &sw2;
+    } else if (enabledStations[currentStationIndex] == 3) {
+        currentTextComponent = &t3k;
+        currentSwitchComponent = &sw3;
+    } else {
+        currentTextComponent = &t4k;
+        currentSwitchComponent = &sw4;
+    }
+
+    // Perform the actions on the determined components
+    if (!currentDetected) {
+        Serial.println("Key switch failure detected!");
+        currentTextComponent->setText("Key Switch Failed");
+        currentTextComponent->Set_background_color_bco(63488); // Red
+        currentSwitchComponent->setValue(0);
+    } else {
+        Serial.println("Operation complete, key switch functioning normally.");
+        currentTextComponent->setText("Key Switch Normal");
+        currentTextComponent->Set_background_color_bco(1024); // Green
+    }
+
+    currentState = IDLE; // Reset for the next station
+    break;
+
     }
 }
 
@@ -181,10 +285,6 @@ void setup() {
         Serial.println("Nextion initialization failed, retrying...");
         delay(500); // Small delay before retrying
     }
-
-    // Attach button callback
-    b0.attachPop(b0PopCallback);
-    Serial.println("Button callback attached");
 }
 
 void loop() {
