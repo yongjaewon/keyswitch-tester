@@ -269,6 +269,9 @@ void handleStates() {
             currentStationIndex = 0; // Wrap to the first station if index is invalid
         }
 
+        // Skip delay after failure
+        lastActuationTime = millis();
+
     } else {
         Serial.println("Operation complete, key switch functioning normally.");
         currentTextComponent->setText("Key Switch Normal");
@@ -277,7 +280,6 @@ void handleStates() {
 
     currentState = IDLE; // Reset for the next station
     break;
-
     }
 }
 
