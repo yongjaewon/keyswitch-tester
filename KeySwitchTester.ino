@@ -252,6 +252,23 @@ void handleStates() {
         currentTextComponent->setText("Key Switch Failed");
         currentTextComponent->Set_background_color_bco(63488); // Red
         currentSwitchComponent->setValue(0);
+
+        // Update enabled stations and adjust currentStationIndex
+        updateEnabledStations();
+
+        // Find the new index of the current station in the updated list
+        uint32_t failedStation = enabledStations[currentStationIndex];
+        for (uint32_t i = 0; i < numEnabledStations; i++) {
+            if (enabledStations[i] == failedStation) {
+                currentStationIndex = i;
+                break;
+            }
+        }
+
+        if (currentStationIndex >= numEnabledStations) {
+            currentStationIndex = 0; // Wrap to the first station if index is invalid
+        }
+
     } else {
         Serial.println("Operation complete, key switch functioning normally.");
         currentTextComponent->setText("Key Switch Normal");
