@@ -46,7 +46,7 @@ const float adcResolution = 1023.0; // 10-bit ADC resolution
 const float vOffset = 2.5;      // Zero-current voltage (2.5V)
 const float sensitivity = 0.04; // Sensitivity in V/A (40 mV/A for ACS758-050B)
 const int currentSensePin = A0; // Current sensor connected to A0
-const int currentThreshold = 25; // Failure threshold: 25A
+const int currentThreshold = 8; // Failure threshold: 8A
 
 unsigned long actuationPeriodMillis = 10000; // Default actuation period in milliseconds
 unsigned long lastPeriodUpdate = 0; // Timer to track periodic updates from Nextion
