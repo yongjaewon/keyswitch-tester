@@ -40,18 +40,17 @@ NexTouch *nex_listen_list[] = {
 // Servo and current sensor parameters
 const int T_DWELL = 150;
 const int SERVO_WAIT_TIME = 1000;
+const int zeroPoints[4] = {565, 525, 415, 595}; // Zero points for each station
 const float vRef = 5.0;         // Arduino reference voltage
 const float adcResolution = 1023.0; // 10-bit ADC resolution
 const float vOffset = 2.5;      // Zero-current voltage (2.5V)
 const float sensitivity = 0.04; // Sensitivity in V/A (40 mV/A for ACS758-050B)
 const int currentSensePin = A0; // Current sensor connected to A0
-const int currentThreshold = 1; // Failure threshold: 1A
+const int currentThreshold = 25; // Failure threshold: 25A
 
 unsigned long actuationPeriodMillis = 10000; // Default actuation period in milliseconds
 unsigned long lastPeriodUpdate = 0; // Timer to track periodic updates from Nextion
 bool masterEnable = true; // Master enable state
-
-const unsigned long ACTUATION_PERIOD = 10000; // Actuation period in milliseconds
 
 // State machine states
 enum State {
@@ -72,6 +71,7 @@ enum ServoSubState {
 
 State currentState = IDLE; // Initial state
 ServoSubState servoSubState = SERVO_START; // Initial substate for servo commands
+
 unsigned long lastActuationTime = 0; // Timer to track periodic actuation
 unsigned long lastStateTime = 0; // Timer for state transitions
 bool currentDetected = false; // Flag to track current detection
@@ -92,7 +92,7 @@ void sendServoMoveCommand(byte servoID, int angle, int time) {
     byte data[10];
 
     // Map the angle. 0-1000 corresponds to 0-240 degrees.
-    int controlAngle = map(angle, -120, 120, 0, 1000);
+    int servoValue = zeroPoints[servoID - 1] + (25/6) * angle;
 
     // Header
     data[0] = 0x55;
@@ -110,8 +110,8 @@ void sendServoMoveCommand(byte servoID, int angle, int time) {
     data[6] = (time >> 8) & 0xFF;
     data[7] = servoID;  // ID
     // Angle (low and high byte)
-    data[8] = controlAngle & 0xFF;        // Low byte of angle
-    data[9] = (controlAngle >> 8) & 0xFF; // High byte of angle
+    data[8] = servoValue & 0xFF;        // Low byte of angle
+    data[9] = (servoValue >> 8) & 0xFF; // High byte of angle
 
     // Send the data
     sendData(data, 10);
@@ -161,7 +161,7 @@ void handleStates() {
   static unsigned long lastActuationTime = millis(); // Track time for periodic actuation
 
   // Calculate delay between stations based on enabled stations
-  unsigned long stationDelay = ACTUATION_PERIOD / max(1, numEnabledStations);
+  unsigned long stationDelay = actuationPeriodMillis / max(1, numEnabledStations);
 
     switch (currentState) {
         case IDLE:
@@ -225,14 +225,14 @@ void handleStates() {
             monitorCurrent(); // Continuously monitor current during this state
             switch (servoSubState) {
                 case SERVO_START:
-                    sendServoMoveCommand(enabledStations[currentStationIndex], 90, 100); // Actuate the current station's key switch
+                    sendServoMoveCommand(enabledStations[currentStationIndex], 105, 200); // Actuate the current station's key switch
                     servoSubState = SERVO_WAIT_TDWELL;
                     lastStateTime = millis();
                     break;
 
                 case SERVO_WAIT_TDWELL:
                     if (millis() - lastStateTime >= T_DWELL) {
-                        sendServoMoveCommand(enabledStations[currentStationIndex], 45, 100); // Reset the current station's key switch
+                        sendServoMoveCommand(enabledStations[currentStationIndex], 0, 100); // Reset the current station's key switch
                         servoSubState = SERVO_WAIT;
                         lastStateTime = millis();
                     }
@@ -289,24 +289,34 @@ void handleStates() {
             currentStationIndex = 0; // Wrap to the first station if index is invalid
         }
 
-        // Skip delay after failure
-        lastActuationTime = millis();
-
     } else {
         Serial.println("Operation complete, key switch functioning normally.");
         currentTextComponent->setText("Key Switch Normal");
         currentTextComponent->Set_background_color_bco(1024); // Green
     }
 
+    updateActuationPeriod();
+
     currentState = IDLE; // Reset for the next station
     break;
-<<<<<<< HEAD
 }
 }
 
 void updateActuationPeriod() {
     uint32_t cyclesPerMinute;
-    if (n0.getValue(&cyclesPerMinute)) {
+    bool success = false;
+
+    for (int attempt = 0; attempt < 3; attempt++) {
+        if (n0.getValue(&cyclesPerMinute)) {
+            success = true;
+            break; // Exit the loop on successful retrieval
+        }
+        Serial.print("Attempt ");
+        Serial.print(attempt + 1);
+        Serial.println(" failed to fetch cycles per minute from Nextion.");
+    }
+
+    if (success) {
         // Convert cycles per minute to milliseconds per cycle
         if (cyclesPerMinute > 0) {
             actuationPeriodMillis = 60000 / cyclesPerMinute;
@@ -316,11 +326,10 @@ void updateActuationPeriod() {
             Serial.println("Invalid cycles per minute from Nextion.");
         }
     } else {
-        Serial.println("Failed to fetch cycles per minute from Nextion.");
-=======
->>>>>>> 496e3e8585af7b76bada4010f7bfeb25d5b6c089
+        Serial.println("Failed to fetch cycles per minute from Nextion after 3 attempts.");
     }
 }
+
 
 void setup() {
     // Initialize Serial for debugging
@@ -351,4 +360,5 @@ void loop() {
 
     // Manage the state machine
     handleStates();
+
 }
