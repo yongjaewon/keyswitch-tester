@@ -38,7 +38,7 @@ NexTouch *nex_listen_list[] = {
 };
 
 // Servo and current sensor parameters
-const int T_DWELL = 150;
+const int T_DWELL = 600;
 const int SERVO_WAIT_TIME = 1000;
 const int zeroPoints[4] = {565, 525, 415, 595}; // Zero points for each station
 const float vRef = 5.0;         // Arduino reference voltage
