@@ -49,7 +49,7 @@ const int currentThreshold = 8;                 // Failure threshold: 8A
 
 unsigned long actuationPeriodMillis = 10000; // Default actuation period in milliseconds
 unsigned long lastPeriodUpdate = 0;          // Timer to track periodic updates from Nextion
-bool masterEnable = false;                    // Master enable state
+bool masterEnable = false;                   // Master enable state
 
 // State machine states
 enum State
@@ -126,7 +126,26 @@ void sendServoMoveCommand(byte servoID, int angle, int time)
 void updateMasterEnable()
 {
     uint32_t value;
-    if (bt0.getValue(&value))
+    bool success = false; // Flag to track successful retrieval
+
+    for (int attempt = 1; attempt <= 3; attempt++)
+    {
+        if (bt0.getValue(&value))
+        {
+            success = true;
+            Serial.print("bt0 value retrieved successfully on attempt ");
+            Serial.println(attempt);
+            break; // Exit the loop on success
+        }
+        else
+        {
+            Serial.print("Attempt ");
+            Serial.print(attempt);
+            Serial.println(" failed to get value from bt0.");
+        }
+    }
+
+    if (success)
     {
         masterEnable = (value == 0); // Enabled if bt0 value is 0
         if (!masterEnable)
@@ -137,6 +156,13 @@ void updateMasterEnable()
         {
             Serial.println("Master enable is ON. Resuming actuations.");
         }
+    }
+    else
+    {
+        Serial.println("Failed to retrieve bt0 value after 3 attempts.");
+        // Handle the failure as needed
+        // Example: Retain previous state or set a default value
+        // masterEnable = false; // Example default
     }
 }
 
@@ -318,16 +344,16 @@ void handleStates()
         // Perform the actions on the determined components
         if (!currentDetected)
         {
-            failureCounts[currentStationIndex]++;
-            int n = failureCounts[currentStationIndex];
+            uint32_t failedStation = enabledStations[currentStationIndex];
+            failureCounts[failedStation - 1]++;
             char buffer[50];
-            sprintf(buffer, "%s%d", "Key Switch Failure Attept ", n);
+            sprintf(buffer, "%s%d", "Failure Attept ", failureCounts[failedStation - 1]);
             Serial.println(buffer);
             Serial.println("Key switch failure detected!");
             currentTextComponent->setText(buffer);
-            currentTextComponent->Set_background_color_bco(64768);
+            currentTextComponent->Set_background_color_bco(64768); // Orange
 
-            if (failureCounts[currentStationIndex] >= 4)
+            if (failureCounts[failedStation - 1] >= 4)
             {
                 Serial.println("Key switch failure detected (4 in a row)!");
                 currentTextComponent->setText("Key Switch Failed");
@@ -338,7 +364,6 @@ void handleStates()
                 updateEnabledStations();
 
                 // Find the new index of the current station in the updated list
-                uint32_t failedStation = enabledStations[currentStationIndex];
                 for (uint32_t i = 0; i < numEnabledStations; i++)
                 {
                     if (enabledStations[i] == failedStation)
@@ -358,13 +383,12 @@ void handleStates()
             {
                 // Not yet a total failure, just a warning or do nothing
                 Serial.println("Key switch did not detect current, but not failing yet.");
-                // You could optionally show a warning state here if desired
             }
         }
         else
         {
             // Reset failure count if successful
-            failureCounts[currentStationIndex] = 0;
+            failureCounts[failedStation - 1] = 0;
             Serial.println("Operation complete, key switch functioning normally.");
             currentTextComponent->setText("Key Switch Normal");
             currentTextComponent->Set_background_color_bco(1024); // Green
@@ -372,18 +396,10 @@ void handleStates()
 
         // Update enabled stations and adjust currentStationIndex
         updateEnabledStations();
-
-        if (currentStationIndex >= numEnabledStations)
-        {
-            currentStationIndex = 0; // Wrap to the first station if index is invalid
-        }
-
         updateActuationPeriod();
 
         currentState = IDLE; // Reset for the next station
         break;
-    }
-}
 
 void updateActuationPeriod()
 {
