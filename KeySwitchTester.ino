@@ -80,6 +80,8 @@ uint32_t enabledStations[4] = {0, 0, 0, 0}; // Store which stations are enabled
 uint32_t numEnabledStations = 0; // Count of enabled stations
 uint32_t currentStationIndex = 0; // Current station being processed
 
+int failureCounts[4] = {0, 0, 0, 0};
+
 // Function to send data in the specified format
 void sendData(byte data[], int length) {
     for (int i = 0; i < length; i++) {
@@ -248,52 +250,74 @@ void handleStates() {
             break;
 
         case COMPLETE:
-    NexText *currentTextComponent;
-    NexDSButton *currentSwitchComponent;
+          NexText *currentTextComponent;
+          NexDSButton *currentSwitchComponent;
 
-    // Determine the appropriate components for the current station
-    if (enabledStations[currentStationIndex] == 1) {
-        currentTextComponent = &t1k;
-        currentSwitchComponent = &sw1;
-    } else if (enabledStations[currentStationIndex] == 2) {
-        currentTextComponent = &t2k;
-        currentSwitchComponent = &sw2;
-    } else if (enabledStations[currentStationIndex] == 3) {
-        currentTextComponent = &t3k;
-        currentSwitchComponent = &sw3;
-    } else {
-        currentTextComponent = &t4k;
-        currentSwitchComponent = &sw4;
-    }
+          // Determine the appropriate components for the current station
+          if (enabledStations[currentStationIndex] == 1) {
+              currentTextComponent = &t1k;
+              currentSwitchComponent = &sw1;
+          } else if (enabledStations[currentStationIndex] == 2) {
+              currentTextComponent = &t2k;
+              currentSwitchComponent = &sw2;
+          } else if (enabledStations[currentStationIndex] == 3) {
+              currentTextComponent = &t3k;
+              currentSwitchComponent = &sw3;
+          } else {
+              currentTextComponent = &t4k;
+              currentSwitchComponent = &sw4;
+          }
 
-    // Perform the actions on the determined components
-    if (!currentDetected) {
-        Serial.println("Key switch failure detected!");
-        currentTextComponent->setText("Key Switch Failed");
-        currentTextComponent->Set_background_color_bco(63488); // Red
-        currentSwitchComponent->setValue(0);
+        // Perform the actions on the determined components
+        if (!currentDetected) {
+            failureCounts[currentStationIndex]++;
+            int n = failureCounts[currentStationIndex];
+            char buffer[50];
+            sprintf(buffer, "%s%d", "Key Switch Failure Attept ", n);
+            Serial.println(buffer);
+            Serial.println("Key switch failure detected!");
+            currentTextComponent->setText(buffer);
+            currentTextComponent->Set_background_color_bco(64768);
 
-        // Update enabled stations and adjust currentStationIndex
-        updateEnabledStations();
+            if (failureCounts[currentStationIndex] >= 4) {
+                    Serial.println("Key switch failure detected (4 in a row)!");
+                    currentTextComponent->setText("Key Switch Failed");
+                    currentTextComponent->Set_background_color_bco(63488); // Red
+                    currentSwitchComponent->setValue(0);
 
-        // Find the new index of the current station in the updated list
-        uint32_t failedStation = enabledStations[currentStationIndex];
-        for (uint32_t i = 0; i < numEnabledStations; i++) {
-            if (enabledStations[i] == failedStation) {
-                currentStationIndex = i;
-                break;
+                    // Update enabled stations after failure
+                    updateEnabledStations();
+
+                    // Find the new index of the current station in the updated list
+                    uint32_t failedStation = enabledStations[currentStationIndex];
+                    for (uint32_t i = 0; i < numEnabledStations; i++) {
+                        if (enabledStations[i] == failedStation) {
+                            currentStationIndex = i;
+                            break;
+                        }
+                    }
+                    if (currentStationIndex >= numEnabledStations) {
+                        currentStationIndex = 0; // If station not found, reset to first
+                    }
+                } else {
+                    // Not yet a total failure, just a warning or do nothing
+                    Serial.println("Key switch did not detect current, but not failing yet.");
+                    // You could optionally show a warning state here if desired
+                }
+            } else {
+                // Reset failure count if successful
+                failureCounts[currentStationIndex] = 0;
+                Serial.println("Operation complete, key switch functioning normally.");
+                currentTextComponent->setText("Key Switch Normal");
+                currentTextComponent->Set_background_color_bco(1024); // Green
             }
-        }
 
-        if (currentStationIndex >= numEnabledStations) {
-            currentStationIndex = 0; // Wrap to the first station if index is invalid
-        }
+            // Update enabled stations and adjust currentStationIndex
+            updateEnabledStations();
 
-    } else {
-        Serial.println("Operation complete, key switch functioning normally.");
-        currentTextComponent->setText("Key Switch Normal");
-        currentTextComponent->Set_background_color_bco(1024); // Green
-    }
+            if (currentStationIndex >= numEnabledStations) {
+                currentStationIndex = 0; // Wrap to the first station if index is invalid
+            }
 
     updateActuationPeriod();
 
