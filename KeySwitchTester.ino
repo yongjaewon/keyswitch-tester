@@ -1,5 +1,7 @@
 #include "Nextion.h"
 
+#
+
 // Define Nextion components
 
 NexNumber nTarget[] =
@@ -331,8 +333,8 @@ void updateEnabledStations()
 void calculateAmps()
 {
     // Perform the actions on the determined components
-    uint16_t avgCurrent() = calculatePeakAmps();
-    for (uint8_t i = 0; i < 3, i++)
+    uint16_t avgCurrent = calculatePeakAmps();
+    for (uint8_t i = 0; i < 3; i++)
     {
       if (keyAmps[currentStationIndex].setValue(avgCurrent)) break;
     }
@@ -354,8 +356,6 @@ void calculateAmps()
            }
         }
     }
-    resetAmps();
-    currentState = IDLE; // Reset for the next station
 }
 
 void resetAmps()
@@ -445,7 +445,9 @@ void handleStates()
         break;
 
     case COMPLETE:
-        cleanUp();
+        calculateAmps();
+        resetAmps();
+        currentState = IDLE; // Reset for the next station
         break;
     }
 }
