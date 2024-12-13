@@ -285,7 +285,7 @@ void monitorCurrent()
     insertTopReading(current);
 }
 
-uint16_t calculatePeakAmps()
+uint32_t calculateAvgAmps()
 {
     // If there are no readings, return 0
     if (topCount == 0)
@@ -295,14 +295,14 @@ uint16_t calculatePeakAmps()
     
     // Calculate the sum of the top readings
     float sum = 0.0f;
-    for (int i = 0; i < topCount; i++)
+    for (uint8_t i = 0; i < topCount; i++)
     {
         sum += topReadings[i];
     }
     float average = sum / topCount;
     
     // Multiply by 10 to shift decimal, add 0.5 for rounding, and cast to int
-    return (int)(average * 10.0f + 0.5f); // Returns the average value as an integer in tenth of an Amp
+    return (uint32_t)(average * 10.0f + 0.5f); // Returns the average value as an integer in tenth of an Amp
 }
 
 // Update enabled stations
@@ -332,8 +332,7 @@ void updateEnabledStations()
 
 void calculateAmps()
 {
-    // Perform the actions on the determined components
-    uint16_t avgCurrent = calculatePeakAmps();
+    uint32_t avgCurrent = calculateAvgAmps();
     for (uint8_t i = 0; i < 3; i++)
     {
       if (keyAmps[currentStationIndex].setValue(avgCurrent)) break;
@@ -380,7 +379,7 @@ void handleStates()
         {
             if (numEnabledStations > 0)
             {
-                for(int i = 0; i < 4; i++)
+                while(int i = 0; i < 3; i++)
                 {
                     if(enabledStations[currentStationIndex]) break;
                     currentStationIndex = (currentStationIndex + 1) % 4;
