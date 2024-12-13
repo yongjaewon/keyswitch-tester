@@ -96,7 +96,7 @@ NexTouch *nex_listen_list[] =
 
 // Servo and current sensor parameters
 const uint16_t T_DWELL = 600;
-const uint16_t SERVO_WAIT_TIME = 1000;
+const uint16_t SERVO_WAIT_TIME = 300;
 const uint16_t ZERO_POINT[4] = {565, 525, 4125, 595}; // Zero points for each station
 const float V_REF = 5.0;                        // Arduino reference voltage
 const float ADC_RESOLUTION = 1023.0;            // 10-bit ADC resolution
@@ -108,7 +108,7 @@ const uint8_t FAILURE_THRESHOLD = 10;                 // Total number of failure
 const uint8_t AMPS_N_TOP = 20;                      // Number of top readings to maintain
 const uint8_t STATE_DELAY = 50;
 
-uint16_t stationDelay = 10000;             // Time delay between stations
+uint16_t stationDelay = 0;             // Time delay between stations
 unsigned long tlastCycle = 0;                   // Timer to track periodic updates from Nextion
 bool masterEnable = false;                      // Master enable state
 
@@ -137,8 +137,9 @@ enum State
 enum ServoSubState
 {
     SERVO_START,
-    SERVO_WAIT_TDWELL,
-    SERVO_SEND_ZERO,
+    SERVO_RETURN,
+    // SERVO_WAIT_TDWELL,
+    // SERVO_SEND_ZERO,
     SERVO_WAIT
 };
 
@@ -150,7 +151,7 @@ unsigned long lastStateTime = 0;     // Timer for state transitions
 
 bool enabledStations[4] = {0, 0, 0, 0};     // Store which stations are enabled
 uint8_t numEnabledStations = 0;             // Count of enabled stations
-uint8_t currentStationIndex = 0;               // Current station being processed
+uint8_t currentStationIndex = -1;               // Current station being processed
 
 int failureCounts[4] = {0, 0, 0, 0};
 
@@ -163,7 +164,7 @@ void insertTopReading(float current)
         topCount++;
         
         // Sort the array in descending order
-        for(int i = topCount - 1; i > 0; i--)
+        for(int8_t i = topCount - 1; i > 0; i--)
         {
             if(topReadings[i] > topReadings[i - 1])
             {
@@ -203,7 +204,7 @@ void insertTopReading(float current)
 }
 
 // Function to send data in the specified format
-void sendData(uint8_t data[], int length)
+void sendData(byte data[], int length)
 {
     for (int i = 0; i < length; i++)
     {
@@ -212,9 +213,9 @@ void sendData(uint8_t data[], int length)
 }
 
 // Function to create and send a command for servo movement
-void sendServoMoveCommand(uint8_t servoID, int angle, int time)
+void sendServoMoveCommand(byte servoID, int angle, int time)
 {
-    uint8_t data[10];
+    byte data[10];
 
     // Map the angle. 0-1000 corresponds to 0-240 degrees.
     int servoValue = ZERO_POINT[servoID - 1] + (25 / 6) * angle;
@@ -256,23 +257,7 @@ void updateMasterEnable()
         }
     }
 
-    if (success)
-    {
-        if (isEnabled)
-        {
-            masterEnable = true;
-            Serial.println("Master enable is ON.");
-        }
-        else
-        {
-            masterEnable = false;
-            Serial.println("Master enable is OFF.");
-        }
-    }
-    else
-    {
-        Serial.println("Failed to retrieve masterEnable value after 3 attempts.");
-    }
+    if (success) masterEnable = (bool)isEnabled;
 }
 
 // Function to read current and update the top readings
@@ -326,7 +311,11 @@ void updateEnabledStations()
             }
         }
 
-        if (success) enabledStations[i] = isEnabled;
+        if (success)
+        {
+          enabledStations[i] = isEnabled;
+          if (isEnabled) numEnabledStations++;
+        }
     }
 }
 
@@ -340,11 +329,15 @@ void calculateAmps()
 
     if (avgCurrent < 50) // If less than 5.0 Amps
     {
+        // Serial.println("Less than 5.0 Amps");
         uint8_t currentFails = ++failureCounts[currentStationIndex];
+        // Serial.print("Current Fails: ");
+        // Serial.println(currentFails);
         failureCounts[currentStationIndex]++;
         for (uint8_t i = 0; i < 4; i++)
         {
             if (nKeyFails[currentStationIndex].setValue(currentFails)) break;
+            else delay(50);
         }
 
         if (failureCounts[currentStationIndex] > FAILURE_THRESHOLD)
@@ -381,12 +374,13 @@ void handleStates()
             {
                 for(int i = 0; i < 3; i++)
                 {
-                    if(enabledStations[currentStationIndex]) break;
                     currentStationIndex = (currentStationIndex + 1) % 4;
+                    if(enabledStations[currentStationIndex]) break;
                 }
                 currentState = GET_VALUE;
+                lastActuationTime = millis();
             }
-            lastStateTime = millis();
+            Serial.println(currentStationIndex);
         }
         break;
 
@@ -420,11 +414,11 @@ void handleStates()
         {
         case SERVO_START:
             sendServoMoveCommand(currentStationIndex + 1, 105, 200); // Actuate the current station's key switch
-            servoSubState = SERVO_WAIT_TDWELL;
+            servoSubState = SERVO_RETURN;
             lastStateTime = millis();
             break;
 
-        case SERVO_WAIT_TDWELL:
+        case SERVO_RETURN:
             if (millis() - lastStateTime >= T_DWELL)
             {
                 sendServoMoveCommand(currentStationIndex + 1, 0, 100); // Reset the current station's key switch
@@ -454,7 +448,7 @@ void handleStates()
 void updateStationDelay()
 {
     bool success = false;
-    uint32_t speed = 1;
+    uint32_t speed;
 
     for (uint8_t attempt = 0; attempt < 3; attempt++)
     {
@@ -510,6 +504,7 @@ void setup()
 
 void resetStation(NexButton *button)
 {
+    Serial.println("Reset station");
     uint8_t stationToReset = button->getObjPid() -2; // Station 0: Page 2, Station 1: Page 3, etc...
     resetAmps();
     updateEnabledStations();
@@ -529,5 +524,6 @@ void goToSafeState()
     for (int i = 0; i < 4; i++)
     {
         sendServoMoveCommand(i + 1, 0, 100);
-    }  
+    }
+    delay(100);
 }
