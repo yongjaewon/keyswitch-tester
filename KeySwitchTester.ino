@@ -379,7 +379,7 @@ void handleStates()
         {
             if (numEnabledStations > 0)
             {
-                while(int i = 0; i < 3; i++)
+                for(int i = 0; i < 3; i++)
                 {
                     if(enabledStations[currentStationIndex]) break;
                     currentStationIndex = (currentStationIndex + 1) % 4;
@@ -456,7 +456,7 @@ void updateStationDelay()
     bool success = false;
     uint32_t speed = 1;
 
-    for (int attempt = 0; attempt < 3; attempt++)
+    for (uint8_t attempt = 0; attempt < 3; attempt++)
     {
         if (cpm.getValue(&speed))
         {
