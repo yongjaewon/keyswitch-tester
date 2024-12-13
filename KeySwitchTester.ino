@@ -138,8 +138,6 @@ enum ServoSubState
 {
     SERVO_START,
     SERVO_RETURN,
-    // SERVO_WAIT_TDWELL,
-    // SERVO_SEND_ZERO,
     SERVO_WAIT
 };
 
@@ -286,8 +284,9 @@ uint32_t calculateAvgAmps()
     }
     float average = sum / topCount;
     
+    if (average < 0) return 0;
     // Multiply by 10 to shift decimal, add 0.5 for rounding, and cast to int
-    return (uint32_t)(average * 10.0f + 0.5f); // Returns the average value as an integer in tenth of an Amp
+    else return (uint32_t)(average * 10.0f + 0.5f); // Returns the average value as an integer in tenth of an Amp
 }
 
 // Update enabled stations
@@ -313,6 +312,9 @@ void updateEnabledStations()
 
         if (success)
         {
+          // Serial.print(i);
+          // Serial.print(": ");
+          // Serial.println(isEnabled);
           enabledStations[i] = isEnabled;
           if (isEnabled) numEnabledStations++;
         }
@@ -329,25 +331,13 @@ void calculateAmps()
 
     if (avgCurrent < 50) // If less than 5.0 Amps
     {
-        // Serial.println("Less than 5.0 Amps");
         uint8_t currentFails = ++failureCounts[currentStationIndex];
-        // Serial.print("Current Fails: ");
-        // Serial.println(currentFails);
-        failureCounts[currentStationIndex]++;
         for (uint8_t i = 0; i < 4; i++)
         {
             if (nKeyFails[currentStationIndex].setValue(currentFails)) break;
-            else delay(50);
-        }
-
-        if (failureCounts[currentStationIndex] > FAILURE_THRESHOLD)
-        {
-           for (uint8_t i = 0; i < 4; i++)
-           {
-                if (keyState[currentStationIndex].setPic(RED)) break;
-           }
         }
     }
+    resetAmps();
 }
 
 void resetAmps()
@@ -366,21 +356,21 @@ void handleStates()
     switch (currentState)
     {
     case IDLE:
-        updateEnabledStations();
-        updateStationDelay();
         if (millis() - lastActuationTime >= stationDelay)
         {
+            updateEnabledStations();
+            updateStationDelay(); 
             if (numEnabledStations > 0)
             {
-                for(int i = 0; i < 3; i++)
+                for(int i = 0; i < 4; i++)
                 {
                     currentStationIndex = (currentStationIndex + 1) % 4;
                     if(enabledStations[currentStationIndex]) break;
                 }
+                Serial.print(currentStationIndex);
                 currentState = GET_VALUE;
                 lastActuationTime = millis();
             }
-            Serial.println(currentStationIndex);
         }
         break;
 
@@ -402,7 +392,6 @@ void handleStates()
             if (nCounter[currentStationIndex].setValue(currentCount))
             {
                 currentState = SERVO_COMMAND;
-                servoSubState = SERVO_START;
             }
             lastStateTime = millis();
         }
@@ -426,7 +415,6 @@ void handleStates()
                 lastStateTime = millis();
             }
             break;
-
         case SERVO_WAIT:
             if (millis() - lastStateTime >= SERVO_WAIT_TIME)
             {
@@ -506,9 +494,9 @@ void resetStation(NexButton *button)
 {
     Serial.println("Reset station");
     uint8_t stationToReset = button->getObjPid() -2; // Station 0: Page 2, Station 1: Page 3, etc...
+    failureCounts[stationToReset] = 0;
     resetAmps();
     updateEnabledStations();
-    failureCounts[stationToReset] = 0;
 }
 
 void loop()
