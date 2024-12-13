@@ -105,7 +105,7 @@ const float SENSITIVITY = 0.04;                 // Sensitivity in V/A (40 mV/A f
 const uint8_t AMPS_PIN = A0;                        // Current sensor connected to A0
 const uint8_t AMPS_THRESHOLD = 5;                   // Failure threshold: 5A
 const uint8_t FAILURE_THRESHOLD = 10;                 // Total number of failures threshold: 10
-const uint8_t AMPS_N_TOP = 20;                      // Number of top readings to maintain
+const uint8_t AMPS_N_TOP = 5;                      // Number of top readings to maintain
 const uint8_t STATE_DELAY = 50;
 
 uint16_t stationDelay = 0;             // Time delay between stations
@@ -312,9 +312,6 @@ void updateEnabledStations()
 
         if (success)
         {
-          // Serial.print(i);
-          // Serial.print(": ");
-          // Serial.println(isEnabled);
           enabledStations[i] = isEnabled;
           if (isEnabled) numEnabledStations++;
         }
@@ -324,6 +321,7 @@ void updateEnabledStations()
 void calculateAmps()
 {
     uint32_t avgCurrent = calculateAvgAmps();
+    uint8_t currentFails = ++failureCounts[currentStationIndex];
     for (uint8_t i = 0; i < 3; i++)
     {
       if (keyAmps[currentStationIndex].setValue(avgCurrent)) break;
@@ -331,12 +329,20 @@ void calculateAmps()
 
     if (avgCurrent < 50) // If less than 5.0 Amps
     {
-        uint8_t currentFails = ++failureCounts[currentStationIndex];
         for (uint8_t i = 0; i < 4; i++)
         {
             if (nKeyFails[currentStationIndex].setValue(currentFails)) break;
         }
     }
+
+    if (currentFails >= FAILURE_THRESHOLD)
+    {
+      for (uint8_t i = 0; i < 3; i++)
+      {
+        if (stationEnable[currentStationIndex].setValue(0)) break;
+      } 
+    }
+
     resetAmps();
 }
 
