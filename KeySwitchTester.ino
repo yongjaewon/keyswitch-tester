@@ -97,7 +97,7 @@ NexTouch *nex_listen_list[] =
 // Servo and current sensor parameters
 const uint16_t T_DWELL = 600;
 const uint16_t SERVO_WAIT_TIME = 300;
-const uint16_t ZERO_POINT[4] = {565, 525, 4125, 595}; // Zero points for each station
+const uint16_t ZERO_POINT[4] = {565, 525, 528, 595}; // Zero points for each station
 const float V_REF = 5.0;                        // Arduino reference voltage
 const float ADC_RESOLUTION = 1023.0;            // 10-bit ADC resolution
 const float V_OFFSET = 2.5;                     // Zero-current voltage (2.5V)
@@ -151,7 +151,7 @@ bool enabledStations[4] = {0, 0, 0, 0};     // Store which stations are enabled
 uint8_t numEnabledStations = 0;             // Count of enabled stations
 uint8_t currentStationIndex = -1;               // Current station being processed
 
-uint8_t failureCounts[4] = {0, 0, 0, 0};
+uint32_t failureCounts[4] = {0, 0, 0, 0};
 
 void insertTopReading(float current)
 {
@@ -327,19 +327,23 @@ void calculateAmps()
       if (keyAmps[currentStationIndex].setValue(avgCurrent)) break;
     }
 
+    Serial.print("Current: ");
+    Serial.println(avgCurrent);
+
     if (avgCurrent < 50) // If less than 5.0 Amps
     {
+        failureCounts[currentStationIndex]++;
         for (uint8_t i = 0; i < 4; i++)
         {
             if (nKeyFails[currentStationIndex].setValue(failureCounts[currentStationIndex])) break;
         }
     }
 
-    // Serial.print(failureCounts[currentStationIndex]);
-    // Serial.print(" >= ");
-    // Serial.print(FAILURE_THRESHOLD);
-    // Serial.print("?: ");
-    // Serial.println(currentStationFails >= FAILURE_THRESHOLD? "true" : "false");
+    Serial.print(failureCounts[currentStationIndex]);
+    Serial.print(" >= ");
+    Serial.print(FAILURE_THRESHOLD);
+    Serial.print("?: ");
+    Serial.println(failureCounts[currentStationIndex] >= FAILURE_THRESHOLD? "true" : "false");
 
     if (failureCounts[currentStationIndex] >= FAILURE_THRESHOLD)
     {
