@@ -151,7 +151,7 @@ bool enabledStations[4] = {0, 0, 0, 0};     // Store which stations are enabled
 uint8_t numEnabledStations = 0;             // Count of enabled stations
 uint8_t currentStationIndex = -1;               // Current station being processed
 
-int failureCounts[4] = {0, 0, 0, 0};
+uint8_t failureCounts[4] = {0, 0, 0, 0};
 
 void insertTopReading(float current)
 {
@@ -321,7 +321,7 @@ void updateEnabledStations()
 void calculateAmps()
 {
     uint32_t avgCurrent = calculateAvgAmps();
-    uint8_t currentFails = ++failureCounts[currentStationIndex];
+    Serial.println(avgCurrent);
     for (uint8_t i = 0; i < 3; i++)
     {
       if (keyAmps[currentStationIndex].setValue(avgCurrent)) break;
@@ -331,11 +331,17 @@ void calculateAmps()
     {
         for (uint8_t i = 0; i < 4; i++)
         {
-            if (nKeyFails[currentStationIndex].setValue(currentFails)) break;
+            if (nKeyFails[currentStationIndex].setValue(failureCounts[currentStationIndex])) break;
         }
     }
 
-    if (currentFails >= FAILURE_THRESHOLD)
+    // Serial.print(failureCounts[currentStationIndex]);
+    // Serial.print(" >= ");
+    // Serial.print(FAILURE_THRESHOLD);
+    // Serial.print("?: ");
+    // Serial.println(currentStationFails >= FAILURE_THRESHOLD? "true" : "false");
+
+    if (failureCounts[currentStationIndex] >= FAILURE_THRESHOLD)
     {
       for (uint8_t i = 0; i < 3; i++)
       {
@@ -373,7 +379,6 @@ void handleStates()
                     currentStationIndex = (currentStationIndex + 1) % 4;
                     if(enabledStations[currentStationIndex]) break;
                 }
-                Serial.print(currentStationIndex);
                 currentState = GET_VALUE;
                 lastActuationTime = millis();
             }
