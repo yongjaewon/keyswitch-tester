@@ -1,7 +1,5 @@
 #include "Nextion.h"
 
-#
-
 // Define Nextion components
 
 NexNumber nTarget[] =
@@ -107,6 +105,7 @@ const uint8_t AMPS_THRESHOLD = 5;                   // Failure threshold: 5A
 const uint8_t FAILURE_THRESHOLD = 10;                 // Total number of failures threshold: 10
 const uint8_t AMPS_N_TOP = 5;                      // Number of top readings to maintain
 const uint8_t STATE_DELAY = 50;
+const uint8_t V_BATT_PIN = A2;
 
 uint16_t stationDelay = 0;             // Time delay between stations
 unsigned long tlastCycle = 0;                   // Timer to track periodic updates from Nextion
@@ -114,6 +113,8 @@ bool masterEnable = false;                      // Master enable state
 
 float topReadings[AMPS_N_TOP];                  // Array to store top N readings
 uint8_t topCount = 0;                               // Current number of readings in topReadings
+
+uint32_t measurementCounter = 0;
 
 // Display state colors
 enum Color {
@@ -151,7 +152,7 @@ bool enabledStations[4] = {0, 0, 0, 0};     // Store which stations are enabled
 uint8_t numEnabledStations = 0;             // Count of enabled stations
 uint8_t currentStationIndex = -1;               // Current station being processed
 
-uint32_t failureCounts[4] = {0, 0, 0, 0};
+uint32_t failureCounts[4] = {8, 3, 1, 0};
 
 void insertTopReading(float current)
 {
@@ -265,7 +266,7 @@ void monitorCurrent()
     float vInput = (adcValue / ADC_RESOLUTION) * V_REF;
     float current = (V_OFFSET - vInput) / SENSITIVITY;
 
-    insertTopReading(current);
+    insertTopReading(max(0, current));
 }
 
 uint32_t calculateAvgAmps()
@@ -321,14 +322,14 @@ void updateEnabledStations()
 void calculateAmps()
 {
     uint32_t avgCurrent = calculateAvgAmps();
-    Serial.println(avgCurrent);
+    // Serial.println(avgCurrent);
     for (uint8_t i = 0; i < 3; i++)
     {
       if (keyAmps[currentStationIndex].setValue(avgCurrent)) break;
     }
 
-    Serial.print("Current: ");
-    Serial.println(avgCurrent);
+    // Serial.print("Current: ");
+    // Serial.println(avgCurrent);
 
     if (avgCurrent < 50) // If less than 5.0 Amps
     {
@@ -339,11 +340,11 @@ void calculateAmps()
         }
     }
 
-    Serial.print(failureCounts[currentStationIndex]);
-    Serial.print(" >= ");
-    Serial.print(FAILURE_THRESHOLD);
-    Serial.print("?: ");
-    Serial.println(failureCounts[currentStationIndex] >= FAILURE_THRESHOLD? "true" : "false");
+    // Serial.print(failureCounts[currentStationIndex]);
+    // Serial.print(" >= ");
+    // Serial.print(FAILURE_THRESHOLD);
+    // Serial.print("?: ");
+    // Serial.println(failureCounts[currentStationIndex] >= FAILURE_THRESHOLD? "true" : "false");
 
     if (failureCounts[currentStationIndex] >= FAILURE_THRESHOLD)
     {
@@ -408,12 +409,14 @@ void handleStates()
             {
                 currentState = SERVO_COMMAND;
             }
+            measurementCounter = 0;
             lastStateTime = millis();
         }
         break;
 
     case SERVO_COMMAND:
         monitorCurrent(); // Continuously monitor current during this state
+        measurementCounter++;
         switch (servoSubState)
         {
         case SERVO_START:
@@ -441,6 +444,13 @@ void handleStates()
         break;
 
     case COMPLETE:
+        // Serial.println(measurementCounter);
+        for (int i = 0; i < AMPS_N_TOP; i++)
+        {
+          Serial.print(topReadings[i]);
+          Serial.print(", ");
+        }
+        Serial.println();
         calculateAmps();
         resetAmps();
         currentState = IDLE; // Reset for the next station
@@ -470,6 +480,7 @@ void updateStationDelay()
 
 void setup()
 {
+    pinMode(V_BATT_PIN, INPUT);
     // Initialize Serial for debugging
     Serial.begin(9600);
 
@@ -492,7 +503,10 @@ void setup()
 
     for (uint8_t i = 0; i < 4; i++)
     {
+      for (uint8_t j = 0; j < 4; j++)
+      {
         bReset[i].attachPop(resetStation, &bReset[i]);
+      }
     }
 
     for (uint8_t i = 0; i < 3; i++)
@@ -503,21 +517,46 @@ void setup()
         }
         delay(50); // Small delay before retrying
     }
+
+    for (uint8_t i = 0; i < 4; i++)
+    {
+      for (uint8_t j = 0; j < 3; j++)
+      {
+          if (nKeyFails[i].setValue(failureCounts[i])) break;
+      }
+    } 
 }
 
 void resetStation(NexButton *button)
 {
-    Serial.println("Reset station");
-    uint8_t stationToReset = button->getObjPid() -2; // Station 0: Page 2, Station 1: Page 3, etc...
+    Serial.print("Resetting station ");
+    uint8_t stationToReset = button->getObjPid() - 2; // Station 0: Page 2, Station 1: Page 3, etc...
+    Serial.println(stationToReset + 1);
     failureCounts[stationToReset] = 0;
-    resetAmps();
+    for (uint8_t i = 0; i < 4; i++)
+    {
+      Serial.print(failureCounts[i]);
+      Serial.print(", ");
+    }
+    Serial.println();
     updateEnabledStations();
+}
+
+void updateVBatt()
+{
+  float vBattFraction = analogRead(V_BATT_PIN) / ADC_RESOLUTION;
+  uint32_t vBattInt = (uint32_t)(vBattFraction * 650 * 1.041 / 3 + 0.5);
+  for (int i = 0; i <3; i++)
+  {
+    if (vBatt.setValue(vBattInt)) break;
+  }
 }
 
 void loop()
 {
     nexLoop(nex_listen_list);
     updateMasterEnable();
+    updateVBatt();
     if (masterEnable) handleStates();
     else goToSafeState();
 }
