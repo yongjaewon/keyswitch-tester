@@ -100,13 +100,14 @@ const float SENSITIVITY = 0.04;                      // Sensitivity in V/A (40 m
 const uint8_t AMPS_PIN = A0;                         // Current sensor connected to A0
 const uint8_t AMPS_THRESHOLD = 5;                    // Failure threshold: 5A
 const uint8_t FAILURE_THRESHOLD = 10;                // Total number of failures threshold: 10
-const uint8_t AMPS_N_TOP = 5;                        // Number of top readings to maintain
+const uint8_t AMPS_N_TOP = 10;                        // Number of top readings to maintain
 const uint8_t STATE_DELAY = 50;
 const uint8_t V_BATT_PIN = A2;
 
 uint16_t stationDelay = 0;    // Time delay between stations
 unsigned long tlastCycle = 0; // Timer to track periodic updates from Nextion
 bool masterEnable = false;    // Master enable state
+unsigned long tLastMasterEnUpdate = 0;
 
 float topReadings[AMPS_N_TOP]; // Array to store top N readings
 uint8_t topCount = 0;          // Current number of readings in topReadings
@@ -205,8 +206,11 @@ void sendData(byte data[], int length)
 {
     for (int i = 0; i < length; i++)
     {
+        // Serial.print(data[i], HEX);
+        // Serial.print(", ");
         Serial1.write(data[i]); // Send data to the servo controller
     }
+    // Serial.println();
 }
 
 // Function to create and send a command for servo movement
@@ -456,7 +460,7 @@ void handleStates()
         break;
 
     case COMPLETE:
-        // Serial.println(measurementCounter);
+        Serial.println(measurementCounter);
         for (int i = 0; i < AMPS_N_TOP; i++)
         {
             Serial.print(topReadings[i]);
@@ -465,6 +469,7 @@ void handleStates()
         Serial.println();
         calculateAmps();
         resetAmps();
+        updateVBatt();
         currentState = IDLE; // Reset for the next station
         break;
     }
@@ -494,28 +499,28 @@ void setup()
 {
     pinMode(V_BATT_PIN, INPUT);
     // Initialize Serial for debugging
-    Serial.begin(9600);
+    Serial.begin(115200);
 
     // Initialize Serial1 for Hiwonder Servo Controller
     Serial1.begin(9600);
 
     // // nexSerial for Nextion defaults to Serial2
     // nexSerial.begin(115200);
-    if(!nex->nexInit(115200))
-    {
-        Serial.println("nextion init fails"); 
-    }
-    delay(500);
+    // if(!nex->nexInit(115200))
+    // {
+    //     Serial.println("nextion init fails"); 
+    // }
+    // delay(500);
 
     // Retry mechanism for Nextion initialization
-    // for (uint8_t i = 0; i < 3; i++)
-    // {
-    //     if (nexInit())
-    //     {
-    //         break;
-    //     }
-    //     delay(50); // Small delay before retrying
-    // }
+    for (uint8_t i = 0; i < 3; i++)
+    {
+        if (!nex->nexInit(115200))
+        {
+            break;
+        }
+        delay(50); // Small delay before retrying
+    }
 
     for (uint8_t i = 0; i < 4; i++)
     {
@@ -544,9 +549,10 @@ void setup()
     // }
 }
 
-void resetStation(NexButton *button)
+void resetStation(void* ptr)
 {
     Serial.print("Resetting station ");
+    NexButton* button = static_cast<NexButton*>(ptr);
     uint8_t stationToReset = button->getObjPid() - 2; // Station 0: Page 2, Station 1: Page 3, etc...
     Serial.println(stationToReset + 1);
     nKeyFails[stationToReset].setValue(0);
@@ -563,19 +569,18 @@ void resetStation(NexButton *button)
 void updateVBatt()
 {
     float vBattFraction = analogRead(V_BATT_PIN) / ADC_RESOLUTION;
-    uint32_t vBattInt = (uint32_t)(vBattFraction * 650 * 1.041 / 3 + 0.5);
-    for (int i = 0; i < 3; i++)
-    {
-        if (vBatt.setValue(vBattInt))
-            break;
-    }
+    uint32_t vBattInt = (uint32_t)(vBattFraction * 650 / 3 + 0.5);
+    vBatt.setValue(vBattInt);
 }
 
 void loop()
 {
     nex->nexLoop(nex_listen_list);
-    updateMasterEnable();
-    updateVBatt();
+    if (millis() - tLastMasterEnUpdate >= 100)
+    {
+      tLastMasterEnUpdate = millis();
+      updateMasterEnable();
+    }
     if (masterEnable)
         handleStates();
     else
@@ -589,4 +594,4 @@ void goToSafeState()
         sendServoMoveCommand(i + 1, 0, 100);
     }
     delay(100);
-}
+}	 
