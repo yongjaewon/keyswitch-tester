@@ -1,4 +1,5 @@
 #include <Nextion.h>
+#include "Hiwonder.h"
 
 Nextion *nex = Nextion::GetInstance(Serial2);
 
