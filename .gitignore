@@ -1,0 +1,35 @@
+# Global
+.DS_Store
+*.swp
+*.bak
+*.tmp
+*.log
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.venv/
+venv/
+logs/
+
+# Arduino
+*.hex
+*.elf
+*.bin
+*.eep
+*.dep
+*.d
+*.o
+*.a
+
+# VS Code and platform-specific IDEs
+.vscode/
+.idea/
+*.code-workspace
+
+# OS junk
+Thumbs.db
+ehthumbs.db
