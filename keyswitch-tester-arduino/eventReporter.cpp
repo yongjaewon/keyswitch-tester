@@ -30,3 +30,8 @@ void reportStatus() {
     Serial.print("STATION:");
     Serial.println(activeStationIndex);
 }
+
+void reportEvent(const String& message) {
+    Serial.print("EVENT:");
+    Serial.println(message);
+}
