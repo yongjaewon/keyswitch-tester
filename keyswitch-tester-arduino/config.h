@@ -21,7 +21,8 @@ constexpr int SERVO_MAX_TORQUE_PERCENT = 10;  // Maximum torque percentage (0-10
 
 // Movement configuration
 constexpr int CYCLE_FREQUENCY_CPM = 6;  // Frequency of the cycle in cycles per minute
-constexpr unsigned long MOVE_DURATION_MS = 1000;  // Duration of the move in milliseconds
+constexpr unsigned long ROTATE_TO_START_DURATION_MS = 500;  // Duration of the move in milliseconds
+constexpr unsigned long ROTATE_TO_HOME_DURATION_MS = 200;  // Duration of the move in milliseconds
 
 // Current measurement configuration
 constexpr int MAX_PEAK_CURRENTS = 10;  // Maximum number of peak currents to track

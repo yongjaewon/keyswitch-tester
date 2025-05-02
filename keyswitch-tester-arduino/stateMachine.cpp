@@ -11,14 +11,16 @@ using namespace ControlTableItem;
 
 static CycleState currentState = CycleState::READY;
 static unsigned long stateStartTime = 0;
+static unsigned long waitDurationMs = 0;
 
-void enterSafeState() {
+int getEnabledStationCount() {
+    int count = 0;
     for (int i = 0; i < STATION_COUNT; i++) {
-        servoBus.torqueOn(i);
-        servoBus.setGoalCurrent(i, SERVO_MAX_TORQUE_PERCENT);
-        servoBus.setGoalPosition(i, SERVO_ANGLE_HOME);
+        if (stationEnabled[i]) {
+            count++;
+        }
     }
-    currentState = CycleState::HALTED;
+    return count;
 }
 
 // Function to handle the state machine
@@ -27,9 +29,12 @@ void handleStates() {
     
     // Check for emergency stop condition
     if (digitalRead(EMERGENCY_STOP_PIN) == ESTOP_PRESSED) {
-        if (currentState != CycleState::HALTED) {
-            enterSafeState();
+        for (int i = 0; i < STATION_COUNT; i++) {
+            servoBus.setGoalPosition(i, SERVO_ANGLE_HOME, UNIT_DEGREE);
         }
+        masterEnabled = false;
+        currentState = CycleState::HALTED;
+        reportEvent("Emergency stop condition detected");
         return;
     }
     
@@ -49,10 +54,6 @@ void handleStates() {
                 // Reset peak current tracking
                 resetPeakCurrents();
                 
-                // Set goal position for the active station's servo
-                servoBus.setGoalCurrent(activeStationIndex, SERVO_MAX_TORQUE_PERCENT);
-                servoBus.setGoalPosition(activeStationIndex, SERVO_ANGLE_START);
-                
                 // Move to next state
                 currentState = CycleState::ACTUATING_START;
                 reportEvent("Moving station " + String(activeStationIndex) + " to start position");
@@ -66,15 +67,33 @@ void handleStates() {
             // Track peak currents during movement
             handleMovementMeasurement(activeStationIndex);
             
+            // Set goal position for the active station's servo
+            servoBus.setGoalPosition(activeStationIndex, SERVO_ANGLE_START, UNIT_DEGREE);
+
             // Wait for the configured time period
-            if (currentTime - stateStartTime > MOVE_DURATION_MS) {
+            if (currentTime - stateStartTime > ROTATE_TO_START_DURATION_MS) {
                 // Movement time complete, move to complete state
-                currentState = CycleState::PROCESSING;
-                reportEvent("Station " + String(activeStationIndex) + " movement time complete");
+                currentState = CycleState::ACTUATING_HOME;
+                reportEvent("Station " + String(activeStationIndex) + " start movement time complete");
             }
             break;
 
-        case CycleState::PROCESSING:
+        case CycleState::ACTUATING_HOME:
+            // Track peak currents during movement
+            handleMovementMeasurement(activeStationIndex);
+            
+            // Return servo to released position
+            servoBus.setGoalPosition(activeStationIndex, SERVO_ANGLE_HOME, UNIT_DEGREE);
+
+            // Wait for the configured time period
+            if (currentTime - stateStartTime > ROTATE_TO_HOME_DURATION_MS) {
+                // Movement time complete, move to complete state
+                currentState = CycleState::PROCESSING;
+                reportEvent("Station " + String(activeStationIndex) + " home movement time complete");
+            }
+            break;
+
+        case CycleState::PROCESSING: {
             // Calculate average of peak currents
             float avgPeakCurrent = getAveragePeakCurrent();
             reportEvent("Station " + String(activeStationIndex) + " average peak current: " + String(avgPeakCurrent));
@@ -84,15 +103,25 @@ void handleStates() {
                 reportEvent("Station " + String(activeStationIndex) + " failed: current below threshold");
             }
             
-            // Return servo to released position
-            servoBus.setGoalPosition(activeStationIndex, SERVO_ANGLE_HOME);
-            
             // Advance to next station
             activeStationIndex = (activeStationIndex + 1) % STATION_COUNT;
             
             // Reset state
-            currentState = CycleState::READY;
+            currentState = CycleState::WAITING;
+
             reportEvent("Cycle complete, moving to station " + String(activeStationIndex));
             break;
+        }
+
+        case CycleState::WAITING: {
+            // Wait for the configured time period
+            int enabledStationCount = getEnabledStationCount();
+            int cyclePeriodMs = (enabledStationCount == 0) ? 0 : (60000 / (CYCLE_FREQUENCY_CPM * enabledStationCount));
+
+            if (currentTime - stateStartTime > cyclePeriodMs) {
+                currentState = CycleState::READY;
+            }
+            break;
+        }
     }
 }

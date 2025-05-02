@@ -2,11 +2,12 @@
 #pragma once
 
 enum class CycleState {
+    HALTED,
     READY,
     ACTUATING_START,
     ACTUATING_HOME,
     PROCESSING,
-    HALTED
+    WAITING
 };
 
 void handleStates();

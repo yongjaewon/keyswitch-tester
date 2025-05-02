@@ -35,6 +35,7 @@ void setup() {
     servoBus.setOperatingMode(i, OP_CURRENT_BASED_POSITION);
     servoBus.torqueOn(i);
     servoBus.setGoalCurrent(i, SERVO_MAX_TORQUE_PERCENT, UNIT_PERCENT);
+    servoBus.setGoalPosition(i, SERVO_ANGLE_HOME, UNIT_DEGREE);
   }
   
   // Initialize the current measurement module
