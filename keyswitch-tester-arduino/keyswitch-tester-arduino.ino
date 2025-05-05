@@ -11,14 +11,12 @@ Dynamixel2Arduino servoBus(SERVO_SERIAL, SERVO_DIR_PIN);
 //This namespace is required to use Dynamixel control table item names
 using namespace ControlTableItem;
 
-// Initialize global variables
-bool masterEnabled = false;
-bool stationEnabled[STATION_COUNT] = {true, true, true, true};  // Initialize all stations as enabled
-int activeStationIndex = 0;
-
 void setup() {
   // Initialize emergency stop pin with pull-up resistor
   pinMode(EMERGENCY_STOP_PIN, INPUT_PULLUP);
+
+  // Initialize voltage input pin
+  pinMode(VOLTAGE_INPUT_PIN, INPUT);
 
   // USB connection with Raspberry Pi
   Serial.begin(115200);
@@ -37,9 +35,6 @@ void setup() {
     servoBus.setGoalCurrent(i, SERVO_MAX_TORQUE_PERCENT, UNIT_PERCENT);
     servoBus.setGoalPosition(i, SERVO_ANGLE_HOME, UNIT_DEGREE);
   }
-  
-  // Initialize the current measurement module
-  initCurrentMeasurer();
 }
 
 void loop() {
