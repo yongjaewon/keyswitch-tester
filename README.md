@@ -40,7 +40,7 @@ keyswitch-tester/
 
 ### Software
 - Python 3.8+
-- Arduino IDE
+- Arduino CLI
 - Required Python packages (see requirements.txt)
 
 ## Setup
@@ -51,20 +51,25 @@ keyswitch-tester/
    cd keyswitch-tester
    ```
 
-2. Set up Python environment:
+2. Install Arduino CLI:
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh
+   ```
+
+3. Set up Python environment:
    ```bash
    python -m venv .venv
    source .venv/bin/activate  # On Windows: .venv\Scripts\activate
    pip install -r requirements.txt
    ```
 
-3. Upload Arduino code:
+4. Upload Arduino code:
    ```bash
    cd arduino
    ./upload.sh
    ```
 
-4. Run the GUI:
+5. Run the GUI:
    ```bash
    python gui/main.py
    ```
