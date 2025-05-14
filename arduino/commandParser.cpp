@@ -2,6 +2,7 @@
 #include "config.h"
 #include "eventReporter.h"
 #include "stateMachine.h"
+#include "stationManager.h"
 #include <Arduino.h>
 
 void handleCommands() {
@@ -16,7 +17,16 @@ void handleCommands() {
         } else if (cmd.startsWith("DISABLE:")) {
             disableStation(cmd.substring(8).toInt());
         } else if (cmd.startsWith("STATE:")) {
-            processStateData(cmd);
+            processStateData(cmd.substring(6));
+        } else if (cmd.startsWith("RESET_CYCLE:")) {
+            resetStationCycles(cmd.substring(12).toInt());
+        } else if (cmd.startsWith("RESET_FAIL:")) {
+            resetStationFailures(cmd.substring(11).toInt());
+        } else if (cmd == "REQUEST_STATE") {
+            reportSystemState();
+            reportStationStates();
+        } else {
+            reportEvent("Error: Unrecognized command - " + cmd);
         }
     }
 }
@@ -59,4 +69,16 @@ void processStateData(const String& stateData) {
     }
     
     reportEvent("Successfully loaded state data from Raspberry Pi");
+}
+
+// Function to reset cycle count for a station
+void resetStationCycles(int station) {
+    resetStationCycleCount(station);
+    reportEvent("Reset cycle count for station " + String(station));
+}
+
+// Function to reset failure count for a station
+void resetStationFailures(int station) {    
+    resetStationFailureCount(station);
+    reportEvent("Reset failure count for station " + String(station));
 }

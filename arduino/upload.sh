@@ -1,5 +1,4 @@
 #!/bin/bash
-
 BOARD="OpenRB-150:samd:OpenRB-150"
 
 PORT=$(ls /dev/ttyACM* 2>/dev/null | grep -i "OpenRB-150" || ls /dev/ttyACM* 2>/dev/null | head -n 1)

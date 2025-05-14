@@ -2,6 +2,8 @@
 #pragma once
 #include <Arduino.h>
 
-void reportCycle(int station, unsigned long cycle, int failure, float keyswitchCurrent, float starterCurrent);
+void reportCycle(int station, boolean enabled, unsigned long cycles, int failures, float keyswitchCurrent, float starterCurrent);
 void reportEvent(const String& message);
-void requestLastSavedState();
+void reportSystemState();
+void reportStationState(int station);
+void reportStationStates();

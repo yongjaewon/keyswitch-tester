@@ -14,6 +14,8 @@ using namespace ControlTableItem;
 void setup() {
   pinMode(EMERGENCY_STOP_PIN, INPUT_PULLUP);
 
+  analogReadResolution(ADC_RESOLUTION_BITS);
+
   pinMode(KEYSWITCH_VOLTAGE_INPUT_PIN, INPUT);
   pinMode(STARTER_VOLTAGE_INPUT_PIN, INPUT);
 
@@ -40,7 +42,8 @@ void setup() {
   // Wait a moment for serial connection to stabilize
   delay(500);
   
-  requestLastSavedState();
+  // Perform initial current measurement calibration
+  calibrateOffsets();
 }
 
 void loop() {
