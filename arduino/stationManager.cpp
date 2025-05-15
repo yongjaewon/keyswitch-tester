@@ -4,7 +4,7 @@
 #include "eventReporter.h"
 
 static bool stationEnabled[STATION_COUNT] = {true, true, true, true};
-static unsigned long cycleCount[STATION_COUNT] = {112491, 107314, 121208, 95132};
+static unsigned long cycleCount[STATION_COUNT] = {118875, 113758, 0, 0};
 static int failureCount[STATION_COUNT] = {0, 0, 0, 0};
 
 // Station management functions
@@ -26,6 +26,7 @@ bool enableStation(int station) {
         return false;
     }
     stationEnabled[station] = true;
+    reportStationState(station);
     reportEvent("Station " + String(station) + " enabled");
     return true;
 }
@@ -40,29 +41,32 @@ bool disableStation(int station) {
         return false;
     }
     stationEnabled[station] = false;
+    reportStationState(station);
     reportEvent("Station " + String(station) + " disabled");
     return true;
 }
 
 // Counter management functions
 void updateStationCounters(int station, unsigned long cycles, int failures) {
-    if (station >= 0 && station < STATION_COUNT) {
-        cycleCount[station] = cycles;
-        failureCount[station] = failures;
-    }
+    cycleCount[station] = cycles;
+    failureCount[station] = failures;
+    reportStationState(station);
 }
 
 void incrementStationCycles(int station) {
     cycleCount[station]++;
+    reportStationState(station);
 }
 
 void incrementStationFailures(int station) {
     failureCount[station]++;
+    reportStationState(station);
 }
 
 void resetStationCycleCount(int station) {
     if (station >= 0 && station < STATION_COUNT) {
         cycleCount[station] = 0;
+        reportStationState(station);
         reportEvent("Station " + String(station) + " cycle count reset to 0");
     }
 }
@@ -70,6 +74,7 @@ void resetStationCycleCount(int station) {
 void resetStationFailureCount(int station) {
     if (station >= 0 && station < STATION_COUNT) {
         failureCount[station] = 0;
+        reportStationState(station);
         reportEvent("Station " + String(station) + " failure count reset to 0");
     }
 }

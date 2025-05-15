@@ -19,7 +19,7 @@ constexpr float SERVO_PROTOCOL_VERSION = 2.0;
 constexpr int SERVO_ANGLE_HOME = 0;
 constexpr int SERVO_ANGLE_START = 90;  // Set higher than needed to ensure the key rotates fully. The torque limit will prevent stalling.
 constexpr int SERVO_MAX_TORQUE_PERCENT = 10;
-constexpr unsigned long ROTATE_TO_START_DURATION_MS = 500; // This is longer to keep the key switch in the start position for some time.
+constexpr unsigned long ROTATE_TO_START_DURATION_MS = 700; // This is longer to make the key switch dwell in the start position.
 constexpr unsigned long ROTATE_TO_HOME_DURATION_MS = 200;
 constexpr int CYCLE_FREQUENCY_CPM = 6;
 

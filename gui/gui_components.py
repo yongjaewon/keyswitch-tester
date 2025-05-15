@@ -7,7 +7,8 @@ import os
 from constants import (
     START_BUTTON_STYLE, RESET_BUTTON_STYLE, LOG_BUTTON_STYLE, 
     TOGGLE_BUTTON_STYLE, STATION_FRAME_STYLE, STATION_LABEL_STYLE,
-    COLOR_SUCCESS, COLOR_ERROR, COLOR_TEXT_LIGHT
+    COLOR_SUCCESS, COLOR_ERROR, COLOR_WARNING, COLOR_TEXT_LIGHT,
+    COLOR_TEXT_DARK, CONNECT_BUTTON_STYLE
 )
 
 class ToggleSwitch(QAbstractButton):
@@ -225,7 +226,7 @@ class StationStatusWidget(QWidget):
         stations_container = QWidget()
         stations_layout = QVBoxLayout(stations_container)
         stations_layout.setContentsMargins(0, 0, 0, 0)
-        stations_layout.setSpacing(5)  # Increased from 3 to 5
+        stations_layout.setSpacing(6)  # Increased spacing between station rows from 5 to 10
         
         # Storage for UI references
         self.value_labels = {}
@@ -275,6 +276,7 @@ class StationStatusWidget(QWidget):
         frame = QFrame()
         frame.setFrameShape(QFrame.StyledPanel)
         frame.setStyleSheet(STATION_FRAME_STYLE)
+        frame.setFixedHeight(70)  # Set the height of station rows to 60 pixels
         
         # Create layout
         layout = QGridLayout(frame)
@@ -307,7 +309,7 @@ class StationStatusWidget(QWidget):
         
         for label in [cycle_count, failure_count, keyswitch_current, starter_current]:  # Added starter_current to the list
             label.setAlignment(Qt.AlignCenter)
-            label.setStyleSheet("padding: 2px;")
+            label.setStyleSheet("padding: 2px; font-size: 16px; font-weight: bold;")
         
         # Make clickable labels show a hand cursor to indicate they're interactive
         cycle_count.setCursor(Qt.PointingHandCursor)
@@ -322,7 +324,7 @@ class StationStatusWidget(QWidget):
         toggle = QPushButton("ON")
         toggle.setCheckable(True)
         toggle.setChecked(True)
-        toggle.setFixedSize(60, 35)  # Restore to original size
+        toggle.setFixedSize(65, 40)  # Increased size from 60x35 to 65x40
         toggle.setCursor(Qt.PointingHandCursor)
         toggle.setStyleSheet(TOGGLE_BUTTON_STYLE)
         
@@ -403,32 +405,25 @@ class ControlWidget(QWidget):
     def __init__(self, on_toggle):
         super().__init__()
         self.setup_ui(on_toggle)
+        self.connected = False
     
     def setup_ui(self, on_toggle):
         """Set up the user interface"""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(5, 2, 5, 2)
         
-        # Start/stop button
-        self.start_stop_btn = QPushButton("Start")
-        self.start_stop_btn.setCheckable(True)
+        # Start/stop button (initially shows as Connect)
+        self.start_stop_btn = QPushButton("Connect")
+        self.start_stop_btn.setCheckable(False)  # Initially not checkable
         self.start_stop_btn.clicked.connect(on_toggle)
-        self.start_stop_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {COLOR_SUCCESS};
-                color: {COLOR_TEXT_LIGHT};
-                border: none;
-                padding: 6px;
-                font-size: 14px;
-                border-radius: 4px;
-                min-height: 32px;
-            }}
-        """)
+        self.start_stop_btn.setStyleSheet(CONNECT_BUTTON_STYLE)
         
         layout.addWidget(self.start_stop_btn)
     
     def update_state(self, is_running):
         """Update the button state"""
+        self.connected = True
+        self.start_stop_btn.setCheckable(True)
         self.start_stop_btn.setChecked(is_running)
         self.start_stop_btn.setText("Stop" if is_running else "Start")
         self.start_stop_btn.setStyleSheet(f"""
@@ -438,6 +433,7 @@ class ControlWidget(QWidget):
                 border: none;
                 padding: 6px;
                 font-size: 14px;
+                font-weight: bold;
                 border-radius: 4px;
                 min-height: 32px;
             }}

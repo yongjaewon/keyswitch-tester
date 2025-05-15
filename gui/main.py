@@ -183,13 +183,18 @@ class KeyswitchTesterGUI(QMainWindow):
             self.log_message("ERROR: Failed to send state request")
             
     def toggle_start_stop(self):
-        """Toggle between start and stop states"""
-        # Try to connect to port if not already connected
-        if not self.serial_manager.serial_port and not self.connect_to_device():
-            self.control_widget.update_state(False)
+        """Toggle between connect, start, and stop states"""
+        # If not connected (button shows "Connect"), try to connect
+        if not self.serial_manager.serial_port:
+            if self.connect_to_device():
+                # Connection successful, update button to "Start"
+                self.control_widget.update_state(False)  # Set to "Start" (not running)
+            else:
+                # Connection failed, keep as "Connect"
+                self.log_message("Failed to connect to device")
             return
         
-        # Send start/stop command
+        # Already connected, handle Start/Stop toggling
         is_running = self.control_widget.start_stop_btn.isChecked()
         command = self.COMMAND_START if is_running else self.COMMAND_STOP
         status = "Started" if is_running else "Stopped"
@@ -202,7 +207,7 @@ class KeyswitchTesterGUI(QMainWindow):
                 self.control_widget.update_state(False)
                 return
         
-        self.control_widget.update_state(is_running)
+        # No need to call update_state here as it was already toggled by the button's checked state
     
     def read_serial(self):
         """Read and process data from the serial port"""

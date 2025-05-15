@@ -12,6 +12,7 @@ WINDOW_MIN_HEIGHT = 250
 COLOR_PRIMARY = "#2196F3"    # Blue
 COLOR_SUCCESS = "#4CAF50"    # Green
 COLOR_ERROR = "#f44336"      # Red
+COLOR_WARNING = "#FFB71B"    # Yellow
 COLOR_DISABLED = "#e0e0e0"   # Light Gray
 COLOR_BACKGROUND = "#f9f9f9" # Off-white
 COLOR_TEXT_DARK = "#333333"  # Dark Gray
@@ -21,6 +22,22 @@ COLOR_TEXT_LIGHT = "white"   # White
 MAIN_WINDOW_STYLE = f"""
     QMainWindow {{
         background-color: {COLOR_BACKGROUND};
+    }}
+"""
+
+CONNECT_BUTTON_STYLE = f"""
+    QPushButton {{
+        background-color: {COLOR_WARNING};
+        color: {COLOR_TEXT_DARK};
+        border: none;
+        padding: 6px;
+        font-size: 14px;
+        font-weight: bold;
+        border-radius: 4px;
+        min-height: 32px;
+    }}
+    QPushButton:hover {{
+        background-color: #e6a618;
     }}
 """
 
@@ -48,6 +65,7 @@ START_BUTTON_STYLE = f"""
         border: none;
         padding: 6px;
         font-size: 14px;
+        font-weight: bold;
         border-radius: 4px;
         min-height: 32px;
     }}
@@ -91,4 +109,5 @@ STATION_FRAME_STYLE = """
 STATION_LABEL_STYLE = f"""
     color: {COLOR_PRIMARY}; 
     font-weight: bold;
+    font-size: 14px;
 """ 

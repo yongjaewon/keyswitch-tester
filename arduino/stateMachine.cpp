@@ -33,15 +33,19 @@ void checkEmergencyStop() {
 }
 
 void processCycle() {
-    incrementStationCycles(activeStationIndex);
     float keyswitchCurrent = getPeakKeyswitchCurrent();
     float starterCurrent = getPeakStarterCurrent();
+    
     if (keyswitchCurrent < KEYSWITCH_CURRENT_THRESHOLD || starterCurrent < STARTER_CURRENT_THRESHOLD) {
         incrementStationFailures(activeStationIndex);
+    } else {
+        incrementStationCycles(activeStationIndex);
     }
+
     if (getStationFailures(activeStationIndex) >= STATION_FAILURE_THRESHOLD) {
         disableStation(activeStationIndex);
     }
+
     reportCycle(
         activeStationIndex,
         isStationEnabled(activeStationIndex),
@@ -50,6 +54,7 @@ void processCycle() {
         keyswitchCurrent,
         starterCurrent
     );
+    
     activeStationIndex = (activeStationIndex + 1) % STATION_COUNT;
     currentState = CycleState::WAITING;
 }
