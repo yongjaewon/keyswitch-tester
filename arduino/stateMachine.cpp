@@ -69,6 +69,7 @@ void handleStates() {
         case CycleState::EMERGENCY_STOPPED:
         case CycleState::STOPPED:
             homeAllServos();
+            reportSystemState();
             break;
             
         case CycleState::READY:
