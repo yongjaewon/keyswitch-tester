@@ -47,4 +47,20 @@ constexpr int ADC_RESOLUTION_BITS = 12;  // Set ADC resolution to 12 bits for be
 constexpr int ADC_MAX_VALUE = 4095;  // Maximum value for 12-bit ADC (2^12 - 1)
 constexpr float ADC_REFERENCE_VOLTAGE = 3.3;  // Reference voltage for ADC (in volts)
 
+// FRAM configuration
+constexpr uint8_t FRAM_CS_PIN = 7;   // Chip select pin for FRAM
+
+// FRAM memory layout
+#define FRAM_MAGIC_NUMBER_ADDR     0      // 4 bytes for magic number to confirm initialization
+#define FRAM_VERSION_ADDR          4      // 2 bytes for version information
+#define FRAM_STATION_DATA_ADDR     16     // Start of station data (aligned on 16-byte boundary)
+#define FRAM_LOG_DATA_ADDR         1024   // Start of optional log data
+
+// FRAM data constants
+#define FRAM_MAGIC_NUMBER          0x4B535753  // "KSWS" (KeySWitch) as hex
+#define FRAM_DATA_VERSION          0x0001      // Current data format version
+
+// FRAM backup interval (10 minutes in milliseconds)
+constexpr unsigned long FRAM_BACKUP_INTERVAL_MS = 10 * 60 * 1000;
+
 extern Dynamixel2Arduino servoBus;

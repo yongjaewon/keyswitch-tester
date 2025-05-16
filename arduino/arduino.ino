@@ -3,13 +3,18 @@
 #include "eventReporter.h"
 #include "commandParser.h"
 #include "currentMeasurer.h"
+#include "framStorage.h"
 #include <Dynamixel2Arduino.h>
 #include <Arduino.h>
+#include <SPI.h>
 
 Dynamixel2Arduino servoBus(SERVO_SERIAL, SERVO_DIR_PIN);
 
 //This namespace is required to use Dynamixel control table item names
 using namespace ControlTableItem;
+
+// Track the last FRAM backup time
+unsigned long lastFramBackupTime = 0;
 
 void setup() {
   pinMode(EMERGENCY_STOP_PIN, INPUT_PULLUP);
@@ -26,6 +31,9 @@ void setup() {
     delay(500);
   }
 
+  // Initialize SPI for FRAM
+  SPI.begin();
+  
   // Set servo bus port baudrate to 57600bps and the protocol version to 2.0. This has to match with DYNAMIXEL.
   servoBus.begin(57600);
   servoBus.setPortProtocolVersion(SERVO_PROTOCOL_VERSION);
@@ -42,6 +50,17 @@ void setup() {
   // Wait a moment for serial connection to stabilize
   delay(500);
   
+  // Initialize FRAM and load saved station states
+  if (initFRAM()) {
+    loadStationStates();
+    reportEvent("Loaded station states from FRAM");
+  } else {
+    reportEvent("Failed to initialize FRAM, using default station states");
+  }
+  
+  // Save current time for backup timing
+  lastFramBackupTime = millis();
+  
   // Perform initial current measurement calibration
   calibrateOffsets();
 }
@@ -49,4 +68,11 @@ void setup() {
 void loop() {
   handleCommands();
   handleStates();
+  
+  // Periodically backup all states to FRAM to ensure data integrity
+  unsigned long currentTime = millis();
+  if (currentTime - lastFramBackupTime >= FRAM_BACKUP_INTERVAL_MS) {
+    saveStationStates();
+    lastFramBackupTime = currentTime;
+  }
 }

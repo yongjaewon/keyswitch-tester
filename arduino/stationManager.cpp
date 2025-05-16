@@ -2,9 +2,10 @@
 #include "stationManager.h"
 #include "config.h"
 #include "eventReporter.h"
+#include "framStorage.h"
 
 static bool stationEnabled[STATION_COUNT] = {true, true, true, true};
-static unsigned long cycleCount[STATION_COUNT] = {118875, 113758, 0, 0};
+static unsigned long cycleCount[STATION_COUNT] = {124146, 119031, 0, 0};
 static int failureCount[STATION_COUNT] = {0, 0, 0, 0};
 
 // Station management functions
@@ -27,6 +28,7 @@ bool enableStation(int station) {
     }
     stationEnabled[station] = true;
     reportStationState(station);
+    saveStationEnabled(station, true);
     reportEvent("Station " + String(station) + " enabled");
     return true;
 }
@@ -42,6 +44,7 @@ bool disableStation(int station) {
     }
     stationEnabled[station] = false;
     reportStationState(station);
+    saveStationEnabled(station, false);
     reportEvent("Station " + String(station) + " disabled");
     return true;
 }
@@ -51,22 +54,26 @@ void updateStationCounters(int station, unsigned long cycles, int failures) {
     cycleCount[station] = cycles;
     failureCount[station] = failures;
     reportStationState(station);
+    saveStationState(station);
 }
 
 void incrementStationCycles(int station) {
     cycleCount[station]++;
     reportStationState(station);
+    saveStationCycles(station, cycleCount[station]);
 }
 
 void incrementStationFailures(int station) {
     failureCount[station]++;
     reportStationState(station);
+    saveStationFailures(station, failureCount[station]);
 }
 
 void resetStationCycleCount(int station) {
     if (station >= 0 && station < STATION_COUNT) {
         cycleCount[station] = 0;
         reportStationState(station);
+        saveStationCycles(station, 0);
         reportEvent("Station " + String(station) + " cycle count reset to 0");
     }
 }
@@ -75,6 +82,7 @@ void resetStationFailureCount(int station) {
     if (station >= 0 && station < STATION_COUNT) {
         failureCount[station] = 0;
         reportStationState(station);
+        saveStationFailures(station, 0);
         reportEvent("Station " + String(station) + " failure count reset to 0");
     }
 }
