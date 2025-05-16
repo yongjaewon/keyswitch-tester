@@ -42,7 +42,7 @@ void processCycle() {
         incrementStationCycles(activeStationIndex);
     }
 
-    if (getStationFailures(activeStationIndex) >= STATION_FAILURE_THRESHOLD) {
+    if (getStationFailures(activeStationIndex) >= STATION_FAILURE_THRESHOLD || getStationCycles(activeStationIndex) >= STATION_CYCLE_THRESHOLD) {
         disableStation(activeStationIndex);
     }
 

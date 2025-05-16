@@ -11,6 +11,7 @@ constexpr int EMERGENCY_STOP_PIN = 0;  // Digital pin 0 for emergency stop input
 // Station configuration
 constexpr int STATION_COUNT = 4;
 constexpr int STATION_FAILURE_THRESHOLD = 10;
+constexpr int STATION_FAILURE_THRESHOLD_MS = 200000;
 
 // Servo configuration
 constexpr int SERVO_DIR_PIN = -1;
