@@ -4,8 +4,8 @@
 #include <Arduino.h>
 
 // Emergency stop configuration
-#define ESTOP_PRESSED HIGH
-#define ESTOP_RELEASED LOW
+constexpr int ESTOP_PRESSED = HIGH;
+constexpr int ESTOP_RELEASED = LOW;
 constexpr int EMERGENCY_STOP_PIN = 0;  // Digital pin 0 for emergency stop input
 
 // Station configuration
@@ -13,7 +13,6 @@ constexpr int STATION_COUNT = 4;
 constexpr int STATION_FAILURE_THRESHOLD = 10;
 
 // Servo configuration
-#define SERVO_SERIAL Serial1
 constexpr int SERVO_DIR_PIN = -1;
 constexpr float SERVO_PROTOCOL_VERSION = 2.0;
 constexpr int SERVO_ANGLE_HOME = 0;
@@ -51,16 +50,19 @@ constexpr float ADC_REFERENCE_VOLTAGE = 3.3;  // Reference voltage for ADC (in v
 constexpr uint8_t FRAM_CS_PIN = 7;   // Chip select pin for FRAM
 
 // FRAM memory layout
-#define FRAM_MAGIC_NUMBER_ADDR     0      // 4 bytes for magic number to confirm initialization
-#define FRAM_VERSION_ADDR          4      // 2 bytes for version information
-#define FRAM_STATION_DATA_ADDR     16     // Start of station data (aligned on 16-byte boundary)
-#define FRAM_LOG_DATA_ADDR         1024   // Start of optional log data
+constexpr uint32_t FRAM_MAGIC_NUMBER_ADDR = 0;      // 4 bytes for magic number to confirm initialization
+constexpr uint32_t FRAM_VERSION_ADDR = 4;           // 2 bytes for version information
+constexpr uint32_t FRAM_STATION_DATA_ADDR = 16;     // Start of station data (aligned on 16-byte boundary)
+constexpr uint32_t FRAM_LOG_DATA_ADDR = 1024;       // Start of optional log data
 
 // FRAM data constants
-#define FRAM_MAGIC_NUMBER          0x4B535753  // "KSWS" (KeySWitch) as hex
-#define FRAM_DATA_VERSION          0x0001      // Current data format version
+constexpr uint32_t FRAM_MAGIC_NUMBER = 0x4B535753;  // "KSWS" (KeySWitch) as hex
+constexpr uint16_t FRAM_DATA_VERSION = 0x0001;      // Current data format version
 
 // FRAM backup interval (10 minutes in milliseconds)
 constexpr unsigned long FRAM_BACKUP_INTERVAL_MS = 10 * 60 * 1000;
+
+// Serial port for servo bus
+#define SERVO_SERIAL Serial1
 
 extern Dynamixel2Arduino servoBus;
